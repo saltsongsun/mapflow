@@ -142,17 +142,28 @@ export function MapViewer({
     }
   }, [editMode]);
 
-  // 도구 바뀌면 진행 중 점들 정리 (calibrate는 캘리브 점 따로)
+  // 도구 바뀌면 진행 중 점들 정리
   useEffect(() => {
     setDrawingPoints([]);
     if (drawTool === 'calibrate') {
-      setCalibModalOpen(true);
-      setCalibrationPoints(map.calibration ? [map.calibration.point_a, map.calibration.point_b] : []);
+      // 기존 보정값이 있으면 그 점들로 시작 (수정 가능)
+      // 모달은 자동으로 띄우지 않음 - 두 점이 모두 찍혀야 자동으로 띄움
+      setCalibrationPoints(
+        map.calibration ? [map.calibration.point_a, map.calibration.point_b] : []
+      );
+      setCalibModalOpen(false);
     } else {
       setCalibModalOpen(false);
       setCalibrationPoints([]);
     }
   }, [drawTool, map.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 캘리브레이션 점이 2개가 되면 자동으로 모달 띄움
+  useEffect(() => {
+    if (drawTool === 'calibrate' && calibrationPoints.length === 2) {
+      setCalibModalOpen(true);
+    }
+  }, [drawTool, calibrationPoints.length]);
 
   const screenToNormalized = (clientX: number, clientY: number): Point2D | null => {
     if (!imageRef.current) return null;
@@ -543,12 +554,52 @@ export function MapViewer({
         />
       )}
 
-      {/* === 거리 보정 모달 === */}
+      {/* === 거리 보정 - 점 찍기 안내 (두 점 찍기 전에는 모달 대신 가벼운 가이드) === */}
+      {editMode && drawTool === 'calibrate' && !calibModalOpen && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 glass-panel rounded-xl shadow-xl fade-up overflow-hidden max-w-[92vw]">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border">
+            <span className="text-amber-400">📏</span>
+            <div className="text-xs">
+              <div className="font-medium text-amber-300">
+                {calibrationPoints.length === 0 && '거리 보정 — 첫 번째 점을 클릭하세요'}
+                {calibrationPoints.length === 1 && '거리 보정 — 두 번째 점을 클릭하세요'}
+              </div>
+              <div className="text-[10px] text-text-dim mt-0.5">
+                실제 거리를 알고 있는 두 지점을 찍으면 미터 입력창이 열립니다
+              </div>
+            </div>
+            {calibrationPoints.length > 0 && (
+              <button
+                className="btn btn-ghost !p-1.5 !text-[11px] !text-text-muted ml-1"
+                onClick={() => setCalibrationPoints([])}
+                title="다시 찍기"
+              >
+                다시
+              </button>
+            )}
+            <button
+              className="btn btn-ghost !p-1.5 !text-text-dim"
+              onClick={() => setDrawTool('marker')}
+              title="취소"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* === 거리 보정 모달 - 두 점이 모두 찍히면 자동으로 열림 === */}
       {calibModalOpen && drawTool === 'calibrate' && (
         <CalibrationModal
           current={map.calibration}
           points={calibrationPoints}
-          onPointsChange={setCalibrationPoints}
+          onPointsChange={(pts) => {
+            setCalibrationPoints(pts);
+            // 점이 0이나 1개로 줄면 모달 닫고 다시 찍기 모드로
+            if (pts.length < 2) {
+              setCalibModalOpen(false);
+            }
+          }}
           onSave={(c) => {
             onSetCalibration(c);
             setDrawTool('marker');

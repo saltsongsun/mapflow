@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Ruler, Trash2, Info } from 'lucide-react';
 import { Point2D, MapCalibration } from '../lib/types';
 import { distance } from '../lib/geometry';
@@ -24,14 +24,6 @@ export function CalibrationModal({
   const [meters, setMeters] = useState<string>(
     current ? String(current.real_distance_m) : ''
   );
-
-  // 기존 보정이 있으면 그 점들로 시작
-  useEffect(() => {
-    if (current && points.length === 0) {
-      onPointsChange([current.point_a, current.point_b]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const isComplete = points.length === 2;
   const metersNum = parseFloat(meters);
@@ -79,9 +71,8 @@ export function CalibrationModal({
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex gap-2">
             <Info size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-amber-200/90 leading-relaxed">
-              실제로 알고 있는 두 지점(예: 건물 모서리부터 입구까지)을 클릭한 뒤 그
-              사이의 실제 거리(미터)를 입력하세요. 마커 이동 속도가 시속 3km(걷는
-              속도)로 자동 계산됩니다.
+              두 지점 사이의 실제 거리(미터)를 입력하세요. 마커 이동 속도가 시속
+              3km(걷는 속도)로 자동 계산됩니다.
             </div>
           </div>
 
@@ -89,14 +80,6 @@ export function CalibrationModal({
             <PointStatus label="A 점" set={points.length >= 1} />
             <PointStatus label="B 점" set={points.length >= 2} />
           </div>
-
-          {points.length < 2 && (
-            <p className="text-xs text-text-muted text-center py-1">
-              {points.length === 0
-                ? '지도에서 첫 번째 점을 클릭하세요'
-                : '지도에서 두 번째 점을 클릭하세요'}
-            </p>
-          )}
 
           {points.length > 0 && (
             <button
@@ -123,6 +106,12 @@ export function CalibrationModal({
                 value={meters}
                 onChange={(e) => setMeters(e.target.value)}
                 disabled={!isComplete}
+                autoFocus={isComplete}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && isValid) {
+                    handleSave();
+                  }
+                }}
               />
               <span className="text-sm text-text-muted">m</span>
             </div>
