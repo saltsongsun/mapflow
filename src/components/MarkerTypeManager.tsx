@@ -70,7 +70,7 @@ export function MarkerTypeManager({ types, onSave, onClose }: MarkerTypeManagerP
             <p className="text-xs text-text-muted mt-0.5">
               {isInitialSetup
                 ? '인원 이름, 팀, 상태 등 표시할 종류를 자유롭게 정하세요'
-                : '이름과 색상을 자유롭게 변경할 수 있습니다'}
+                : '같은 색에 다른 이름도 가능 (예: 같은 팀 내 여러 인원)'}
             </p>
           </div>
           <button className="btn btn-ghost !p-1.5" onClick={onClose}>

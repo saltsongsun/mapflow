@@ -332,6 +332,8 @@ export default function HomePage() {
                 map={data.currentMap}
                 markers={data.currentMarkers}
                 markerTypes={data.markerTypes}
+                zones={data.currentZones}
+                paths={data.currentPaths}
                 currentTypeId={data.currentTypeId}
                 editMode={editMode}
                 onAddMarker={(x, y, typeId) =>
@@ -344,6 +346,11 @@ export default function HomePage() {
                 }
                 onRemoveMarker={data.removeMarker}
                 onUpdateMarker={data.updateMarker}
+                onAddZone={data.addZone}
+                onRemoveZone={data.removeZone}
+                onAddPath={data.addPath}
+                onRemovePath={data.removePath}
+                onSetCalibration={(c) => data.setCalibration(data.currentMap!.id, c)}
                 isFullscreen={fullscreen.isFullscreen}
                 onToggleFullscreen={
                   fullscreen.isSupported
