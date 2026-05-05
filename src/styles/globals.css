@@ -111,6 +111,25 @@ button {
   backdrop-filter: blur(4px);
 }
 
+/* === 드래그 중인 마커 === */
+.marker-dragging {
+  transition: none !important;
+}
+.marker-dragging .marker-core {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 1),
+    0 0 20px var(--marker-color, #7c5cff),
+    0 0 40px var(--marker-color, #7c5cff),
+    0 6px 16px rgba(0, 0, 0, 0.6);
+  animation: none;
+  filter: brightness(1.4);
+}
+.marker-dragging .marker-pulse,
+.marker-dragging .marker-pulse-2 {
+  animation: none;
+  opacity: 0;
+}
+
 /* === 스크롤바 다크모드 === */
 ::-webkit-scrollbar {
   width: 8px;

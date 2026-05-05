@@ -50,12 +50,15 @@ export function MapViewer({
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
   const [editNote, setEditNote] = useState('');
   const [editTypeId, setEditTypeId] = useState('');
-  // 드래그 vs 클릭 구분용
+  // 마커 드래그 중일 때 지도 팬을 비활성화하기 위한 플래그
+  const [panDisabled, setPanDisabled] = useState(false);
+  // 빈 공간 클릭 vs 팬 구분용
   const pointerStart = useRef<{ x: number; y: number; t: number } | null>(null);
 
   const aspectRatio = map.height / map.width;
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // 마커 위에서 시작된 포인터는 마커가 처리 (stopPropagation으로 여기 안 옴)
     pointerStart.current = { x: e.clientX, y: e.clientY, t: Date.now() };
   };
 
@@ -63,6 +66,8 @@ export function MapViewer({
     const start = pointerStart.current;
     pointerStart.current = null;
     if (!start) return;
+    // 마커 드래그가 진행 중이었다면 빈 공간 클릭으로 새 마커 만들지 않음
+    if (panDisabled) return;
     const dx = Math.abs(e.clientX - start.x);
     const dy = Math.abs(e.clientY - start.y);
     const dt = Date.now() - start.t;
@@ -77,9 +82,8 @@ export function MapViewer({
     onAddMarker(x, y, currentTypeId);
   };
 
-  const handleMarkerClick = (e: React.MouseEvent, marker: Marker) => {
-    e.stopPropagation();
-    pointerStart.current = null; // 마커 클릭은 새 마커 추가 방지
+  const openMarkerEditor = (marker: Marker) => {
+    pointerStart.current = null; // 마커 상호작용은 새 마커 추가 방지
     setSelectedMarker(marker);
     setEditNote(marker.note || '');
     setEditTypeId(marker.type_id);
@@ -115,6 +119,7 @@ export function MapViewer({
         maxScale={8}
         wheel={{ step: 0.1 }}
         pinch={{ step: 5 }}
+        panning={{ disabled: panDisabled }}
         doubleClick={{ disabled: true }}
         onTransformed={(ref) => setScale(ref.state.scale)}
         limitToBounds={false}
@@ -157,7 +162,11 @@ export function MapViewer({
                   type={type}
                   scale={scale}
                   showLabel={showLabels}
-                  onClick={(e) => handleMarkerClick(e, marker)}
+                  containerRef={imageRef}
+                  onDragStart={() => setPanDisabled(true)}
+                  onDragEnd={() => setPanDisabled(false)}
+                  onClick={() => openMarkerEditor(marker)}
+                  onMove={(x, y) => onUpdateMarker(marker.id, { x, y })}
                 />
               );
             })}
@@ -271,6 +280,10 @@ export function MapViewer({
                   삭제
                 </button>
               </div>
+
+              <p className="text-[11px] text-text-dim text-center pt-1">
+                💡 마커를 길게 누르거나 드래그하면 위치를 옮길 수 있어요
+              </p>
             </div>
           </div>
         </>
