@@ -36,7 +36,7 @@ import {
 } from '../lib/geometry';
 import { MarkerDot } from './MarkerDot';
 import { MapOverlay, DrawingMode } from './MapOverlay';
-import { DrawingTools } from './DrawingTools';
+import { DrawingTools, DrawTool } from './DrawingTools';
 import { CalibrationModal } from './CalibrationModal';
 import { ZoneArrivalPicker, ZoneArrivalMode } from './ZoneArrivalPicker';
 import { useMarkerAnimation } from '../hooks/useMarkerAnimation';
@@ -63,8 +63,6 @@ interface MapViewerProps {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
-
-type DrawTool = 'marker' | 'zone' | 'path' | 'calibrate';
 
 export function MapViewer({
   map,
@@ -98,8 +96,8 @@ export function MapViewer({
   const [editStatusId, setEditStatusId] = useState<string>('');
   const [panDisabled, setPanDisabled] = useState(false);
 
-  // 그리기 도구 상태
-  const [drawTool, setDrawTool] = useState<DrawTool>('marker');
+  // 그리기 도구 상태 - 기본은 'select' (실수 방지)
+  const [drawTool, setDrawTool] = useState<DrawTool>('select');
   const [drawingPoints, setDrawingPoints] = useState<Point2D[]>([]);
   const [calibrationPoints, setCalibrationPoints] = useState<Point2D[]>([]);
   const [calibModalOpen, setCalibModalOpen] = useState(false);
@@ -139,7 +137,7 @@ export function MapViewer({
   // 편집 모드가 꺼지면 그리기 진행 중인 작업 정리
   useEffect(() => {
     if (!editMode) {
-      setDrawTool('marker');
+      setDrawTool('select');
       setDrawingPoints([]);
       setCalibrationPoints([]);
       setCalibModalOpen(false);
@@ -197,15 +195,9 @@ export function MapViewer({
     const norm = screenToNormalized(e.clientX, e.clientY);
     if (!norm) return;
 
-    if (drawTool === 'marker') {
-      // 클릭한 위치가 어느 구역 안인지 확인
-      const containingZone = findZoneContaining(norm, zones);
-      if (containingZone) {
-        // 구역 안 클릭 시 정확히 그 위치(클릭 지점)로 마커 추가
-        onAddMarker(norm.x, norm.y, currentTypeId);
-      } else {
-        onAddMarker(norm.x, norm.y, currentTypeId);
-      }
+    if (drawTool === 'add') {
+      // 추가 모드: 빈 곳 클릭 시 새 마커 생성 (현재 선택된 종류로)
+      onAddMarker(norm.x, norm.y, currentTypeId);
     } else if (drawTool === 'zone' || drawTool === 'path') {
       setDrawingPoints((prev) => [...prev, norm]);
     } else if (drawTool === 'calibrate') {
@@ -214,6 +206,7 @@ export function MapViewer({
         return [...prev, norm];
       });
     }
+    // 'select' 모드는 빈 곳 클릭 무시 - 마커 위 클릭만 처리됨 (마커 컴포넌트가 처리)
   };
 
   const openMarkerEditor = (marker: Marker) => {
@@ -371,11 +364,18 @@ export function MapViewer({
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 backdrop-blur-md text-amber-300 text-xs font-medium shadow-lg fade-up">
           <Pencil size={12} />
           <span>편집 모드</span>
-          {drawTool !== 'marker' && (
-            <span className="text-amber-300/60">
-              · {drawTool === 'zone' ? '구역 그리기' : drawTool === 'path' ? '길 그리기' : '거리 보정'}
-            </span>
-          )}
+          <span className="text-amber-300/60">
+            ·{' '}
+            {drawTool === 'select'
+              ? '선택'
+              : drawTool === 'add'
+              ? '클릭하여 마커 추가'
+              : drawTool === 'zone'
+              ? '구역 그리기'
+              : drawTool === 'path'
+              ? '길 그리기'
+              : '거리 보정'}
+          </span>
         </div>
       )}
 
@@ -457,8 +457,12 @@ export function MapViewer({
                   status={status}
                   scale={scale}
                   showLabel={showLabels}
-                  // 애니메이션 중에는 드래그/클릭 비활성화
-                  editable={editMode && drawTool === 'marker' && !isAnim}
+                  // 선택/추가 모드일 때만 마커 클릭/드래그 가능. 그리기 도구일 땐 비활성.
+                  editable={
+                    editMode &&
+                    (drawTool === 'select' || drawTool === 'add') &&
+                    !isAnim
+                  }
                   containerRef={imageRef}
                   onDragStart={() => setPanDisabled(true)}
                   onDragEnd={() => setPanDisabled(false)}
@@ -590,7 +594,7 @@ export function MapViewer({
             )}
             <button
               className="btn btn-ghost !p-1.5 !text-text-dim"
-              onClick={() => setDrawTool('marker')}
+              onClick={() => setDrawTool('select')}
               title="취소"
             >
               <X size={12} />
@@ -613,14 +617,14 @@ export function MapViewer({
           }}
           onSave={(c) => {
             onSetCalibration(c);
-            setDrawTool('marker');
+            setDrawTool('select');
           }}
           onClear={() => {
             onSetCalibration(undefined);
-            setDrawTool('marker');
+            setDrawTool('select');
           }}
           onClose={() => {
-            setDrawTool('marker');
+            setDrawTool('select');
           }}
         />
       )}

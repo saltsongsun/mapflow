@@ -1,10 +1,11 @@
 import React from 'react';
-import { MapPin, Pentagon, Route, Ruler, Check, X } from 'lucide-react';
-import { DrawingMode } from './MapOverlay';
+import { MousePointer2, Plus, Pentagon, Route, Ruler, Check, X } from 'lucide-react';
+
+export type DrawTool = 'select' | 'add' | 'zone' | 'path' | 'calibrate';
 
 interface DrawingToolsProps {
-  mode: 'marker' | 'zone' | 'path' | 'calibrate';
-  onModeChange: (mode: 'marker' | 'zone' | 'path' | 'calibrate') => void;
+  mode: DrawTool;
+  onModeChange: (mode: DrawTool) => void;
   /** 그리기 진행 중일 때 점 개수 */
   drawingPointCount?: number;
   /** 진행 중인 작업 완료 (구역/길 그리기 끝) */
@@ -27,20 +28,31 @@ export function DrawingTools({
   const canFinish = drawingPointCount >= minPointsToFinish;
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 glass-panel rounded-xl p-1.5 shadow-xl">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 glass-panel rounded-xl p-1.5 shadow-xl">
       <ToolButton
-        active={mode === 'marker'}
-        onClick={() => onModeChange('marker')}
-        icon={<MapPin size={14} />}
-        label="마커"
-        color="#7c5cff"
+        active={mode === 'select'}
+        onClick={() => onModeChange('select')}
+        icon={<MousePointer2 size={14} />}
+        label="선택"
+        color="#9a9ab0"
+        title="마커 클릭/이동/편집만 (빈 곳 클릭은 무시)"
       />
+      <ToolButton
+        active={mode === 'add'}
+        onClick={() => onModeChange('add')}
+        icon={<Plus size={14} />}
+        label="추가"
+        color="#7c5cff"
+        title="빈 곳 클릭 시 새 마커 추가"
+      />
+      <div className="w-px h-6 bg-border mx-1" />
       <ToolButton
         active={mode === 'zone'}
         onClick={() => onModeChange('zone')}
         icon={<Pentagon size={14} />}
         label="구역"
         color="#5cc8ff"
+        title="다각형으로 구역 그리기"
       />
       <ToolButton
         active={mode === 'path'}
@@ -48,6 +60,7 @@ export function DrawingTools({
         icon={<Route size={14} />}
         label="길"
         color="#5cffa8"
+        title="이동 경로(길) 그리기"
       />
       <div className="w-px h-6 bg-border mx-1" />
       <ToolButton
@@ -56,13 +69,14 @@ export function DrawingTools({
         icon={<Ruler size={14} />}
         label={hasCalibration ? '거리 ✓' : '거리'}
         color="#ffe55c"
+        title="실제 거리 보정 (속도 계산용)"
       />
 
       {/* 그리기 진행 중일 때 완료/취소 버튼 */}
       {isDrawing && (
         <>
           <div className="w-px h-6 bg-border mx-1" />
-          <span className="text-[10px] text-text-muted px-2">
+          <span className="text-[10px] text-text-muted px-2 hidden sm:inline">
             점 {drawingPointCount}개
             {!canFinish && ` · 최소 ${minPointsToFinish}개 필요`}
           </span>
@@ -93,12 +107,14 @@ function ToolButton({
   icon,
   label,
   color,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
   color: string;
+  title?: string;
 }) {
   return (
     <button
@@ -116,6 +132,7 @@ function ToolButton({
           : undefined
       }
       onClick={onClick}
+      title={title}
     >
       {icon}
       {label}

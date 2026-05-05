@@ -205,6 +205,9 @@ export function MarkerDot({
   const displayX = dragPos ? dragPos.x : marker.x;
   const displayY = dragPos ? dragPos.y : marker.y;
 
+  // 호버 상태 (마우스가 위에 올라왔을 때 풍부한 툴팁 표시)
+  const [hovered, setHovered] = useState(false);
+
   return (
     <div
       className={`marker-dot${isDragging ? ' marker-dragging' : ''}${
@@ -216,18 +219,27 @@ export function MarkerDot({
         transform: `scale(${inverseScale * (isDragging ? 1.25 : 1)})`,
         // @ts-ignore CSS custom property
         '--marker-color': color,
-        // 편집 모드일 때만 포인터 이벤트 받기. 보기 모드에서는 클릭이 지도로 통과되어
-        // 마커 위에서도 자유롭게 팬/줌 가능.
+        // 편집 가능하면 포인터 받기. 보기 모드에서는 자식의 hover-area만 받도록 none.
         pointerEvents: editable ? 'auto' : 'none',
         touchAction: 'none',
         cursor: editable ? (isDragging ? 'grabbing' : 'grab') : 'default',
-        zIndex: isDragging ? 50 : 10,
+        zIndex: isDragging || hovered ? 50 : 10,
       }}
       onPointerDown={editable ? handlePointerDown : undefined}
       onPointerMove={editable ? handlePointerMove : undefined}
       onPointerUp={editable ? handlePointerUp : undefined}
       onPointerCancel={editable ? handlePointerCancel : undefined}
+      onMouseEnter={editable ? () => setHovered(true) : undefined}
+      onMouseLeave={editable ? () => setHovered(false) : undefined}
     >
+      {/* 보기 모드에서도 호버는 받도록 별도 hover area (포인터 이벤트 auto) */}
+      {!editable && (
+        <div
+          className="marker-hover-area"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        />
+      )}
       <div className="marker-pulse" />
       <div className="marker-pulse-2" />
       <div className="marker-core" />
@@ -242,13 +254,48 @@ export function MarkerDot({
           title={status.label}
         />
       )}
-      {showLabel && type && (
+      {/* 작은 라벨 (showLabel 옵션 켜진 경우, 호버 중엔 큰 툴팁이 대신 표시되므로 숨김) */}
+      {showLabel && type && !hovered && (
         <div className="marker-label" style={{ color: color }}>
           {type.label}
           {status ? (
             <span style={{ color: status.color, marginLeft: 4 }}>· {status.label}</span>
           ) : null}
           {marker.note ? ` · ${marker.note}` : ''}
+        </div>
+      )}
+      {/* 호버 시 풍부한 툴팁 */}
+      {hovered && type && (
+        <div className="marker-tooltip">
+          <div className="marker-tooltip-row">
+            <span
+              className="marker-tooltip-dot"
+              style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+            />
+            <span className="marker-tooltip-label" style={{ color }}>
+              {type.label}
+            </span>
+          </div>
+          {status && (
+            <div className="marker-tooltip-row">
+              <span
+                className="marker-tooltip-dot"
+                style={{
+                  background: status.color,
+                  boxShadow: `0 0 6px ${status.color}`,
+                }}
+              />
+              <span style={{ color: status.color }}>{status.label}</span>
+            </div>
+          )}
+          {marker.note && (
+            <div className="marker-tooltip-note">{marker.note}</div>
+          )}
+          {editable && (
+            <div className="marker-tooltip-hint">
+              클릭: 편집 · 길게 눌러 드래그: 이동
+            </div>
+          )}
         </div>
       )}
     </div>

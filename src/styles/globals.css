@@ -137,6 +137,102 @@ button {
   }
 }
 
+/* === 보기 모드용 hover area (보이지 않지만 마우스 hover 인식) === */
+.marker-hover-area {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: help;
+}
+
+/* === 마커 호버 시 풍부한 툴팁 === */
+.marker-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 110px;
+  max-width: 220px;
+  padding: 8px 10px;
+  background: rgba(15, 15, 22, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+  z-index: 100;
+  animation: tooltip-in 0.15s ease-out;
+}
+
+.marker-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(15, 15, 22, 0.95);
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.marker-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.marker-tooltip-row + .marker-tooltip-row {
+  margin-top: 4px;
+}
+
+.marker-tooltip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.marker-tooltip-label {
+  font-weight: 700;
+}
+
+.marker-tooltip-note {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  color: #c8c8d8;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.marker-tooltip-hint {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 9px;
+  color: #6a6a80;
+  letter-spacing: 0.02em;
+}
+
 /* === 드래그 중인 마커 === */
 .marker-dragging {
   transition: none !important;

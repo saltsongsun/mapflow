@@ -80,17 +80,28 @@ create table if not exists public.paths (
 create index if not exists paths_map_id_idx on public.paths(map_id);
 
 -- ============================================================
--- 실시간 활성화
+-- 실시간 활성화 (이미 추가된 테이블이어도 에러 없이 실행되도록 DO 블록 사용)
 -- ============================================================
-alter publication supabase_realtime add table public.maps;
-alter publication supabase_realtime add table public.markers;
-alter publication supabase_realtime add table public.marker_types;
-alter publication supabase_realtime add table public.marker_statuses;
-alter publication supabase_realtime add table public.zones;
-alter publication supabase_realtime add table public.paths;
+do $$
+declare
+  tbl text;
+begin
+  for tbl in
+    select unnest(array['maps', 'markers', 'marker_types', 'marker_statuses', 'zones', 'paths'])
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = tbl
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', tbl);
+    end if;
+  end loop;
+end $$;
 
 -- ============================================================
--- RLS (인증 없이 동작)
+-- RLS (인증 없이 동작) - 정책이 이미 있으면 drop 후 재생성
 -- ============================================================
 alter table public.maps enable row level security;
 alter table public.markers enable row level security;
@@ -98,6 +109,13 @@ alter table public.marker_types enable row level security;
 alter table public.marker_statuses enable row level security;
 alter table public.zones enable row level security;
 alter table public.paths enable row level security;
+
+drop policy if exists "anon all maps" on public.maps;
+drop policy if exists "anon all markers" on public.markers;
+drop policy if exists "anon all marker_types" on public.marker_types;
+drop policy if exists "anon all marker_statuses" on public.marker_statuses;
+drop policy if exists "anon all zones" on public.zones;
+drop policy if exists "anon all paths" on public.paths;
 
 create policy "anon all maps" on public.maps for all to anon using (true) with check (true);
 create policy "anon all markers" on public.markers for all to anon using (true) with check (true);
