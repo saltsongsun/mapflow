@@ -17,11 +17,16 @@ import {
 import { useAppData } from '../hooks/useAppData';
 import { useMapUpload } from '../hooks/useMapUpload';
 import { useFullscreen } from '../hooks/useFullscreen';
+import { useGpsTracking } from '../hooks/useGpsTracking';
+import { useGpsAccess } from '../hooks/useGpsAccess';
 import { Sidebar } from '../components/Sidebar';
 import { MarkerTypeManager } from '../components/MarkerTypeManager';
 import { MarkerStatusManager } from '../components/MarkerStatusManager';
+import { GpsAccessModal } from '../components/GpsAccessModal';
 import { MapTabs } from '../components/MapTabs';
 import { ShareModal } from '../components/ShareModal';
+import { getOrCreateUser, updateUser } from '../lib/userStore';
+import { User } from '../lib/types';
 
 // 지도 뷰어는 클라이언트 전용 (window 의존)
 const MapViewer = dynamic(
@@ -44,6 +49,55 @@ export default function HomePage() {
   const [shareUrl, setShareUrl] = useState('');
   const [bannerDismissed, setBannerDismissed] = useState(true);
   const [editMode, setEditMode] = useState(false);
+
+  // 사용자 (자동 생성/복원)
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => {
+    setUser(getOrCreateUser());
+  }, []);
+
+  const handleUpdateUserName = (name: string) => {
+    const updated = updateUser({ name });
+    setUser(updated);
+  };
+
+  // GPS 액세스 키 관리
+  const gpsAccess = useGpsAccess(data.appSettings?.gps_key);
+  const [gpsAccessModalOpen, setGpsAccessModalOpen] = useState(false);
+
+  // GPS 추적
+  const gps = useGpsTracking({
+    user: user || {
+      id: '',
+      name: '',
+      color: '#7c5cff',
+      created_at: new Date().toISOString(),
+    },
+    currentMap: data.currentMap,
+    onUpdateLocation: data.upsertGpsLocation,
+    onClearLocation: data.removeGpsLocation,
+  });
+
+  const handleToggleGps = () => {
+    // 키가 필요한데 권한 없으면 모달 열기
+    if (gpsAccess.requiresKey && !gpsAccess.hasAccess) {
+      setGpsAccessModalOpen(true);
+      return;
+    }
+    if (gps.state.enabled) {
+      gps.stop();
+    } else {
+      gps.start();
+    }
+  };
+
+  // 권한이 갑자기 사라지면 (예: 관리자가 키를 변경) 즉시 GPS 끄기
+  useEffect(() => {
+    if (gpsAccess.requiresKey && !gpsAccess.hasAccess && gps.state.enabled) {
+      gps.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gpsAccess.hasAccess, gpsAccess.requiresKey]);
 
   // 편집 모드 복원 (sessionStorage - 탭 닫으면 초기화되어 안전한 보기 모드로 시작)
   useEffect(() => {
@@ -133,7 +187,7 @@ export default function HomePage() {
       />
 
       {/* === 사이드바 (햄버거로 토글, 평상시 접힘) === */}
-      {sidebarOpen && (
+      {sidebarOpen && user && (
         <>
           <div className="backdrop" onClick={() => setSidebarOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 z-50">
@@ -142,16 +196,29 @@ export default function HomePage() {
               markers={data.markers}
               markerTypes={data.markerTypes}
               markerStatuses={data.markerStatuses}
+              gpsLocations={data.gpsLocations}
+              user={user}
+              gpsEnabled={gps.state.enabled}
+              gpsError={gps.state.error}
+              gpsRequiresKey={gpsAccess.requiresKey}
+              gpsHasAccess={gpsAccess.hasAccess}
               currentMapId={data.currentMapId}
               currentTypeId={data.currentTypeId}
               syncStatus={data.syncStatus}
               isCloudConnected={data.isCloudConnected}
+              hasGeoCalibration={!!data.currentMap?.geo_calibration}
               onAddMap={(d) => data.addMap(d)}
               onSelectMap={handleMapSelect}
               onRemoveMap={data.removeMap}
               onSelectType={data.selectType}
               onOpenTypeManager={() => setTypeManagerOpen(true)}
               onOpenStatusManager={() => setStatusManagerOpen(true)}
+              onOpenGpsAccess={() => {
+                setSidebarOpen(false);
+                setGpsAccessModalOpen(true);
+              }}
+              onUpdateUserName={handleUpdateUserName}
+              onToggleGps={handleToggleGps}
               onClose={() => setSidebarOpen(false)}
             />
           </div>
@@ -329,6 +396,8 @@ export default function HomePage() {
                 markerStatuses={data.markerStatuses}
                 zones={data.currentZones}
                 paths={data.currentPaths}
+                gpsLocations={data.currentGpsLocations}
+                currentUserId={user?.id || ''}
                 currentTypeId={data.currentTypeId}
                 editMode={editMode}
                 onAddMarker={(x, y, typeId) =>
@@ -346,6 +415,9 @@ export default function HomePage() {
                 onAddPath={data.addPath}
                 onRemovePath={data.removePath}
                 onSetCalibration={(c) => data.setCalibration(data.currentMap!.id, c)}
+                onSetGeoCalibration={(c) =>
+                  data.setGeoCalibration(data.currentMap!.id, c)
+                }
                 isFullscreen={fullscreen.isFullscreen}
                 onToggleFullscreen={
                   fullscreen.isSupported
@@ -378,6 +450,19 @@ export default function HomePage() {
           statuses={data.markerStatuses}
           onSave={data.saveMarkerStatuses}
           onClose={() => setStatusManagerOpen(false)}
+        />
+      )}
+
+      {/* === GPS 액세스 키 모달 === */}
+      {gpsAccessModalOpen && (
+        <GpsAccessModal
+          serverKey={data.appSettings?.gps_key}
+          userKey={gpsAccess.userKey}
+          hasAccess={gpsAccess.hasAccess}
+          onSaveUserKey={gpsAccess.saveKey}
+          onClearUserKey={gpsAccess.clearKey}
+          onSetServerKey={data.setGpsKey}
+          onClose={() => setGpsAccessModalOpen(false)}
         />
       )}
 

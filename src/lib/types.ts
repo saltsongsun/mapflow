@@ -35,6 +35,56 @@ export interface Point2D {
   y: number;
 }
 
+/** GPS 좌표 (위도/경도) */
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * 익명 사용자 (인증 없는 간단한 ID 시스템).
+ * 처음 접속 시 클라이언트가 자동으로 생성하고 localStorage에 저장.
+ */
+export interface User {
+  id: string; // uuid
+  name: string; // 사용자가 변경 가능한 닉네임
+  color: string; // GPS 마커 색상
+  created_at: string;
+}
+
+/**
+ * GPS 위치 - 한 사용자의 현재 위치 (1행만 유지: upsert).
+ * 화면에 켜져 있는 동안만 주기적으로 업데이트, 일정 시간 갱신 없으면 'stale' 표시.
+ */
+export interface GpsLocation {
+  user_id: string;
+  user_name: string;
+  user_color: string;
+  // GPS 원본
+  lat: number;
+  lng: number;
+  accuracy_m?: number; // 정확도 (미터)
+  // 현재 보고 있는 지도 ID + 변환된 정규화 좌표 (지도가 바뀌면 다시 계산)
+  map_id?: string;
+  x?: number;
+  y?: number;
+  updated_at: string;
+}
+
+/**
+ * 지도 ↔ GPS 변환을 위한 보정 정보.
+ * 지도의 두 지점에 대한 GPS 좌표를 알면 어파인 변환을 통해 임의 GPS → 지도 좌표 환산 가능.
+ * 단순화 모델: 지도가 회전되지 않고 가로/세로 비율이 유지된다고 가정 (대부분의 평면도에 적합).
+ */
+export interface GeoCalibration {
+  // 두 기준점 (지도 정규화 좌표)
+  point_a: Point2D;
+  point_b: Point2D;
+  // 두 기준점에 해당하는 실제 GPS 좌표
+  geo_a: GeoPoint;
+  geo_b: GeoPoint;
+}
+
 /** 구역 (다각형) - 마커가 이 구역으로 이동 가능 */
 export interface Zone {
   id: string;
@@ -80,6 +130,8 @@ export interface MapDoc {
   height: number;
   /** 거리 보정 (없으면 시간 미설정 - 기본 애니메이션 시간 사용) */
   calibration?: MapCalibration;
+  /** GPS 보정 (없으면 GPS 사용자 표시 안 됨) */
+  geo_calibration?: GeoCalibration;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +144,34 @@ export const DEFAULT_MOVE_DURATION_MS = 3500;
 // 너무 짧거나 너무 긴 이동 방지
 export const MIN_MOVE_DURATION_MS = 800;
 export const MAX_MOVE_DURATION_MS = 60000;
+
+// GPS 관련 상수
+export const GPS_UPDATE_INTERVAL_MS = 5000; // 서버 전송 주기
+export const GPS_STALE_THRESHOLD_MS = 30000; // 이 시간 갱신 없으면 'stale' 표시
+export const GPS_OFFLINE_THRESHOLD_MS = 90000; // 이 시간 갱신 없으면 표시 안 함
+
+// GPS 마커용 기본 색상 풀 (사용자별 자동 할당)
+export const GPS_USER_COLORS = [
+  '#7c5cff',
+  '#5cc8ff',
+  '#5cffa8',
+  '#ffb35c',
+  '#ff5c7c',
+  '#a78bff',
+  '#ff5cd9',
+  '#5cffe5',
+];
+
+/**
+ * 앱 전역 설정 (Supabase에 저장, 모든 기기 공유).
+ * 단일 행만 유지: id='global'
+ */
+export interface AppSettings {
+  id: string; // 항상 'global'
+  /** GPS 추적 활성화에 필요한 키. 빈 문자열이면 키 없이 누구나 사용 가능. */
+  gps_key?: string;
+  updated_at: string;
+}
 
 // 기본 마커 타입
 export const DEFAULT_MARKER_TYPES: MarkerType[] = [];

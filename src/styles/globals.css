@@ -233,6 +233,108 @@ button {
   letter-spacing: 0.02em;
 }
 
+/* === GPS 마커 (수동 마커와 구분) === */
+.gps-marker {
+  position: absolute;
+}
+
+.gps-accuracy-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid var(--gps-color, #5cc8ff);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--gps-color, #5cc8ff) 12%, transparent) 0%,
+    transparent 80%
+  );
+  pointer-events: none;
+  animation: gps-ring-pulse 3s ease-in-out infinite;
+}
+
+@keyframes gps-ring-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+}
+
+.gps-marker-core {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--gps-color, #5cc8ff);
+  border: 3px dashed white;
+  box-shadow:
+    0 0 0 1px var(--gps-color, #5cc8ff),
+    0 0 16px var(--gps-color, #5cc8ff),
+    0 2px 8px rgba(0, 0, 0, 0.6);
+  animation: gps-spin 12s linear infinite;
+}
+
+.gps-marker-core.gps-self {
+  inset: 4px;
+  border-width: 2px;
+  box-shadow:
+    0 0 0 2px white,
+    0 0 0 4px var(--gps-color, #5cc8ff),
+    0 0 24px var(--gps-color, #5cc8ff);
+}
+
+.gps-marker-core.gps-stale {
+  animation: none;
+  border-style: dotted;
+  filter: grayscale(0.4);
+}
+
+@keyframes gps-spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}
+
+.gps-marker-badge {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--gps-color, #5cc8ff);
+  color: #0a0a0f;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 6px;
+  border: 1.5px solid #0a0a0f;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* === GPS 전용 터콰이즈 레이어 === */
+@keyframes gps-ping {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+@keyframes gps-line-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -20; }
+}
+
+.gps-layer-self {
+  animation: gps-self-pulse 4s ease-in-out infinite;
+}
+
+@keyframes gps-self-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
 /* === 드래그 중인 마커 === */
 .marker-dragging {
   transition: none !important;

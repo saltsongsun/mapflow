@@ -10,6 +10,9 @@ import {
   Zone,
   PathLine,
   MapCalibration,
+  GeoCalibration,
+  GpsLocation,
+  AppSettings,
   DEFAULT_MARKER_TYPES,
   DEFAULT_MARKER_STATUSES,
 } from '../lib/types';
@@ -22,6 +25,8 @@ export function useAppData() {
     useState<MarkerStatus[]>(DEFAULT_MARKER_STATUSES);
   const [zones, setZones] = useState<Zone[]>([]);
   const [paths, setPaths] = useState<PathLine[]>([]);
+  const [gpsLocations, setGpsLocations] = useState<GpsLocation[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [currentMapId, setCurrentMapId] = useState<string | null>(null);
   const [currentTypeId, setCurrentTypeId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -65,7 +70,7 @@ export function useAppData() {
       if (sb) {
         setSyncStatus('syncing');
         try {
-          const [mapsRes, markersRes, typesRes, statusesRes, zonesRes, pathsRes] =
+          const [mapsRes, markersRes, typesRes, statusesRes, zonesRes, pathsRes, gpsRes, settingsRes] =
             await Promise.all([
               sb.from('maps').select('*').order('created_at', { ascending: false }),
               sb.from('markers').select('*'),
@@ -73,6 +78,8 @@ export function useAppData() {
               sb.from('marker_statuses').select('*'),
               sb.from('zones').select('*'),
               sb.from('paths').select('*'),
+              sb.from('gps_locations').select('*'),
+              sb.from('app_settings').select('*').eq('id', 'global').single(),
             ]);
 
           if (!mapsRes.error && mapsRes.data) {
@@ -98,6 +105,12 @@ export function useAppData() {
           if (!pathsRes.error && pathsRes.data) {
             setPaths(pathsRes.data);
             localStore.setPaths(pathsRes.data);
+          }
+          if (!gpsRes.error && gpsRes.data) {
+            setGpsLocations(gpsRes.data);
+          }
+          if (!settingsRes.error && settingsRes.data) {
+            setAppSettings(settingsRes.data);
           }
           setSyncStatus('synced');
         } catch (e) {
@@ -150,6 +163,30 @@ export function useAppData() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'marker_statuses' },
         () => refresh('marker_statuses', setMarkerStatuses, localStore.setMarkerStatuses)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gps_locations' },
+        () => {
+          sb.from('gps_locations')
+            .select('*')
+            .then(({ data }) => {
+              if (data) setGpsLocations(data);
+            });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_settings' },
+        () => {
+          sb.from('app_settings')
+            .select('*')
+            .eq('id', 'global')
+            .single()
+            .then(({ data }) => {
+              if (data) setAppSettings(data);
+            });
+        }
       )
       .subscribe();
 
@@ -408,6 +445,48 @@ export function useAppData() {
     [updateMap]
   );
 
+  const setGeoCalibration = useCallback(
+    async (mapId: string, geo_calibration: GeoCalibration | undefined) => {
+      await updateMap(mapId, { geo_calibration });
+    },
+    [updateMap]
+  );
+
+  // === GPS Location ===
+  const upsertGpsLocation = useCallback(async (loc: GpsLocation) => {
+    setGpsLocations((prev) => {
+      const filtered = prev.filter((l) => l.user_id !== loc.user_id);
+      return [...filtered, loc];
+    });
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from('gps_locations').upsert(loc, { onConflict: 'user_id' });
+    }
+  }, []);
+
+  const removeGpsLocation = useCallback(async (userId: string) => {
+    setGpsLocations((prev) => prev.filter((l) => l.user_id !== userId));
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from('gps_locations').delete().eq('user_id', userId);
+    }
+  }, []);
+
+  // === App Settings ===
+  const setGpsKey = useCallback(async (gps_key: string) => {
+    const now = new Date().toISOString();
+    const next: AppSettings = {
+      id: 'global',
+      gps_key,
+      updated_at: now,
+    };
+    setAppSettings(next);
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from('app_settings').upsert(next);
+    }
+  }, []);
+
   // === Selection ===
   const selectMap = useCallback((id: string | null) => {
     setCurrentMapId(id);
@@ -428,12 +507,15 @@ export function useAppData() {
     markerStatuses,
     zones,
     paths,
+    gpsLocations,
+    appSettings,
     currentMapId,
     currentTypeId,
     currentMap,
     currentMarkers: markers.filter((m) => m.map_id === currentMapId),
     currentZones: zones.filter((z) => z.map_id === currentMapId),
     currentPaths: paths.filter((p) => p.map_id === currentMapId),
+    currentGpsLocations: gpsLocations.filter((l) => l.map_id === currentMapId),
     loading,
     syncStatus,
     isCloudConnected: isSupabaseConfigured,
@@ -452,6 +534,10 @@ export function useAppData() {
     updatePath,
     removePath,
     setCalibration,
+    setGeoCalibration,
+    upsertGpsLocation,
+    removeGpsLocation,
+    setGpsKey,
     selectMap,
     selectType,
   };

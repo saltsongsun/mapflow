@@ -1,7 +1,7 @@
 import React from 'react';
-import { MousePointer2, Plus, Pentagon, Route, Ruler, Check, X } from 'lucide-react';
+import { MousePointer2, Plus, Pentagon, Route, Ruler, Check, X, MapPin } from 'lucide-react';
 
-export type DrawTool = 'select' | 'add' | 'zone' | 'path' | 'calibrate';
+export type DrawTool = 'select' | 'add' | 'zone' | 'path' | 'calibrate' | 'geocal';
 
 interface DrawingToolsProps {
   mode: DrawTool;
@@ -13,6 +13,7 @@ interface DrawingToolsProps {
   /** 진행 중인 작업 취소 */
   onCancelDrawing?: () => void;
   hasCalibration?: boolean;
+  hasGeoCalibration?: boolean;
 }
 
 export function DrawingTools({
@@ -22,6 +23,7 @@ export function DrawingTools({
   onFinishDrawing,
   onCancelDrawing,
   hasCalibration,
+  hasGeoCalibration,
 }: DrawingToolsProps) {
   const isDrawing = (mode === 'zone' || mode === 'path') && drawingPointCount > 0;
   const minPointsToFinish = mode === 'zone' ? 3 : 2;
@@ -70,6 +72,14 @@ export function DrawingTools({
         label={hasCalibration ? '거리 ✓' : '거리'}
         color="#ffe55c"
         title="실제 거리 보정 (속도 계산용)"
+      />
+      <ToolButton
+        active={mode === 'geocal'}
+        onClick={() => onModeChange('geocal')}
+        icon={<MapPin size={14} />}
+        label={hasGeoCalibration ? 'GPS ✓' : 'GPS'}
+        color="#5cc8ff"
+        title="GPS 보정 (지도와 실제 위경도 매칭)"
       />
 
       {/* 그리기 진행 중일 때 완료/취소 버튼 */}

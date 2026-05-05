@@ -26,6 +26,8 @@ import {
   PathLine,
   Point2D,
   MapCalibration,
+  GeoCalibration,
+  GpsLocation,
 } from '../lib/types';
 import {
   buildMovementPath,
@@ -35,9 +37,12 @@ import {
   polygonCentroid,
 } from '../lib/geometry';
 import { MarkerDot } from './MarkerDot';
+import { GpsMarker } from './GpsMarker';
+import { GpsLayer } from './GpsLayer';
 import { MapOverlay, DrawingMode } from './MapOverlay';
 import { DrawingTools, DrawTool } from './DrawingTools';
 import { CalibrationModal } from './CalibrationModal';
+import { GeoCalibrationModal } from './GeoCalibrationModal';
 import { ZoneArrivalPicker, ZoneArrivalMode } from './ZoneArrivalPicker';
 import { useMarkerAnimation } from '../hooks/useMarkerAnimation';
 
@@ -50,6 +55,8 @@ interface MapViewerProps {
   markerStatuses: MarkerStatus[];
   zones: Zone[];
   paths: PathLine[];
+  gpsLocations: GpsLocation[];
+  currentUserId: string;
   currentTypeId: string;
   editMode: boolean;
   onAddMarker: (x: number, y: number, typeId: string) => void;
@@ -60,6 +67,7 @@ interface MapViewerProps {
   onAddPath: (data: Omit<PathLine, 'id' | 'created_at' | 'updated_at'>) => void;
   onRemovePath: (id: string) => void;
   onSetCalibration: (calibration: MapCalibration | undefined) => void;
+  onSetGeoCalibration: (calibration: GeoCalibration | undefined) => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
@@ -71,6 +79,8 @@ export function MapViewer({
   markerStatuses,
   zones,
   paths,
+  gpsLocations,
+  currentUserId,
   currentTypeId,
   editMode,
   onAddMarker,
@@ -81,6 +91,7 @@ export function MapViewer({
   onAddPath,
   onRemovePath,
   onSetCalibration,
+  onSetGeoCalibration,
   isFullscreen,
   onToggleFullscreen,
 }: MapViewerProps) {
@@ -90,6 +101,7 @@ export function MapViewer({
   const [scale, setScale] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [showOverlay, setShowOverlay] = useState(true);
+  const [showGpsLayer, setShowGpsLayer] = useState(true);
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
   const [editNote, setEditNote] = useState('');
   const [editTypeId, setEditTypeId] = useState('');
@@ -101,6 +113,9 @@ export function MapViewer({
   const [drawingPoints, setDrawingPoints] = useState<Point2D[]>([]);
   const [calibrationPoints, setCalibrationPoints] = useState<Point2D[]>([]);
   const [calibModalOpen, setCalibModalOpen] = useState(false);
+  // GPS 보정 (별도 상태)
+  const [geoCalibPoints, setGeoCalibPoints] = useState<Point2D[]>([]);
+  const [geoCalibModalOpen, setGeoCalibModalOpen] = useState(false);
 
   // 구역 도착 모드 (사용자 선호 - localStorage)
   const [zoneArrivalMode, setZoneArrivalMode] = useState<ZoneArrivalMode>('exact');
@@ -148,8 +163,6 @@ export function MapViewer({
   useEffect(() => {
     setDrawingPoints([]);
     if (drawTool === 'calibrate') {
-      // 기존 보정값이 있으면 그 점들로 시작 (수정 가능)
-      // 모달은 자동으로 띄우지 않음 - 두 점이 모두 찍혀야 자동으로 띄움
       setCalibrationPoints(
         map.calibration ? [map.calibration.point_a, map.calibration.point_b] : []
       );
@@ -157,6 +170,17 @@ export function MapViewer({
     } else {
       setCalibModalOpen(false);
       setCalibrationPoints([]);
+    }
+    if (drawTool === 'geocal') {
+      setGeoCalibPoints(
+        map.geo_calibration
+          ? [map.geo_calibration.point_a, map.geo_calibration.point_b]
+          : []
+      );
+      setGeoCalibModalOpen(false);
+    } else {
+      setGeoCalibModalOpen(false);
+      setGeoCalibPoints([]);
     }
   }, [drawTool, map.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -166,6 +190,12 @@ export function MapViewer({
       setCalibModalOpen(true);
     }
   }, [drawTool, calibrationPoints.length]);
+
+  useEffect(() => {
+    if (drawTool === 'geocal' && geoCalibPoints.length === 2) {
+      setGeoCalibModalOpen(true);
+    }
+  }, [drawTool, geoCalibPoints.length]);
 
   const screenToNormalized = (clientX: number, clientY: number): Point2D | null => {
     if (!imageRef.current) return null;
@@ -202,11 +232,16 @@ export function MapViewer({
       setDrawingPoints((prev) => [...prev, norm]);
     } else if (drawTool === 'calibrate') {
       setCalibrationPoints((prev) => {
-        if (prev.length >= 2) return [norm]; // 이미 2개면 새로 시작
+        if (prev.length >= 2) return [norm];
+        return [...prev, norm];
+      });
+    } else if (drawTool === 'geocal') {
+      setGeoCalibPoints((prev) => {
+        if (prev.length >= 2) return [norm];
         return [...prev, norm];
       });
     }
-    // 'select' 모드는 빈 곳 클릭 무시 - 마커 위 클릭만 처리됨 (마커 컴포넌트가 처리)
+    // 'select' 모드는 빈 곳 클릭 무시
   };
 
   const openMarkerEditor = (marker: Marker) => {
@@ -432,10 +467,38 @@ export function MapViewer({
                 drawingPoints={drawingPoints}
                 drawingMode={drawTool === 'zone' || drawTool === 'path' ? drawTool : null}
                 drawingColor={drawTool === 'zone' ? '#5cc8ff' : '#5cffa8'}
-                calibrationPoints={drawTool === 'calibrate' ? calibrationPoints : undefined}
+                calibrationPoints={
+                  drawTool === 'calibrate'
+                    ? calibrationPoints
+                    : drawTool === 'geocal'
+                    ? geoCalibPoints
+                    : undefined
+                }
                 interactive={false}
               />
             )}
+
+            {/* GPS 전용 터콰이즈 레이어 (수동 마커와 별개로 표시) */}
+            <GpsLayer
+              mapWidth={map.width}
+              mapHeight={map.height}
+              locations={gpsLocations}
+              currentUserId={currentUserId}
+              visible={showGpsLayer}
+            />
+
+            {/* GPS 사용자 마커들 */}
+            {showGpsLayer &&
+              gpsLocations
+                .filter((l) => l.x !== undefined && l.y !== undefined)
+                .map((loc) => (
+                  <GpsMarker
+                    key={loc.user_id}
+                    location={loc}
+                    scale={scale}
+                    isSelf={loc.user_id === currentUserId}
+                  />
+                ))}
 
             {/* 마커들 */}
             {markers.map((marker) => {
@@ -520,7 +583,7 @@ export function MapViewer({
         )}
       </div>
 
-      {/* === 우측 상단 (라벨/오버레이/전체화면) === */}
+      {/* === 우측 상단 (라벨/오버레이/GPS레이어/전체화면) === */}
       <div className="absolute top-4 right-4 flex items-center gap-1 glass-panel rounded-lg p-1">
         <button
           className="btn btn-ghost !p-2 !rounded-md"
@@ -528,6 +591,17 @@ export function MapViewer({
           title={showOverlay ? '구역/길 숨김' : '구역/길 표시'}
         >
           {showOverlay ? '🌐' : '◯'}
+        </button>
+        <button
+          className={`btn btn-ghost !p-2 !rounded-md transition-colors ${
+            showGpsLayer && gpsLocations.length > 0
+              ? '!text-[#5cffe5]'
+              : ''
+          }`}
+          onClick={() => setShowGpsLayer((s) => !s)}
+          title={showGpsLayer ? 'GPS 레이어 숨김' : 'GPS 레이어 표시'}
+        >
+          📡
         </button>
         <button
           className="btn btn-ghost !p-2 !rounded-md"
@@ -556,6 +630,7 @@ export function MapViewer({
           onFinishDrawing={finishDrawing}
           onCancelDrawing={cancelDrawing}
           hasCalibration={!!map.calibration}
+          hasGeoCalibration={!!map.geo_calibration}
         />
       )}
 
@@ -569,7 +644,7 @@ export function MapViewer({
         />
       )}
 
-      {/* === 거리 보정 - 점 찍기 안내 (두 점 찍기 전에는 모달 대신 가벼운 가이드) === */}
+      {/* === 거리 보정 - 점 찍기 안내 === */}
       {editMode && drawTool === 'calibrate' && !calibModalOpen && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 glass-panel rounded-xl shadow-xl fade-up overflow-hidden max-w-[92vw]">
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border">
@@ -587,7 +662,6 @@ export function MapViewer({
               <button
                 className="btn btn-ghost !p-1.5 !text-[11px] !text-text-muted ml-1"
                 onClick={() => setCalibrationPoints([])}
-                title="다시 찍기"
               >
                 다시
               </button>
@@ -595,7 +669,6 @@ export function MapViewer({
             <button
               className="btn btn-ghost !p-1.5 !text-text-dim"
               onClick={() => setDrawTool('select')}
-              title="취소"
             >
               <X size={12} />
             </button>
@@ -603,17 +676,46 @@ export function MapViewer({
         </div>
       )}
 
-      {/* === 거리 보정 모달 - 두 점이 모두 찍히면 자동으로 열림 === */}
+      {/* === GPS 보정 - 점 찍기 안내 === */}
+      {editMode && drawTool === 'geocal' && !geoCalibModalOpen && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 glass-panel rounded-xl shadow-xl fade-up overflow-hidden max-w-[92vw]">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border">
+            <span className="text-accent">📍</span>
+            <div className="text-xs">
+              <div className="font-medium text-accent">
+                {geoCalibPoints.length === 0 && 'GPS 보정 — 첫 번째 점을 클릭하세요'}
+                {geoCalibPoints.length === 1 && 'GPS 보정 — 두 번째 점을 클릭하세요'}
+              </div>
+              <div className="text-[10px] text-text-dim mt-0.5">
+                지도에서 위치를 알고 있는 두 지점을 찍으면 GPS 좌표 입력창이 열립니다
+              </div>
+            </div>
+            {geoCalibPoints.length > 0 && (
+              <button
+                className="btn btn-ghost !p-1.5 !text-[11px] !text-text-muted ml-1"
+                onClick={() => setGeoCalibPoints([])}
+              >
+                다시
+              </button>
+            )}
+            <button
+              className="btn btn-ghost !p-1.5 !text-text-dim"
+              onClick={() => setDrawTool('select')}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* === 거리 보정 모달 === */}
       {calibModalOpen && drawTool === 'calibrate' && (
         <CalibrationModal
           current={map.calibration}
           points={calibrationPoints}
           onPointsChange={(pts) => {
             setCalibrationPoints(pts);
-            // 점이 0이나 1개로 줄면 모달 닫고 다시 찍기 모드로
-            if (pts.length < 2) {
-              setCalibModalOpen(false);
-            }
+            if (pts.length < 2) setCalibModalOpen(false);
           }}
           onSave={(c) => {
             onSetCalibration(c);
@@ -623,9 +725,28 @@ export function MapViewer({
             onSetCalibration(undefined);
             setDrawTool('select');
           }}
-          onClose={() => {
+          onClose={() => setDrawTool('select')}
+        />
+      )}
+
+      {/* === GPS 보정 모달 === */}
+      {geoCalibModalOpen && drawTool === 'geocal' && (
+        <GeoCalibrationModal
+          current={map.geo_calibration}
+          points={geoCalibPoints}
+          onPointsChange={(pts) => {
+            setGeoCalibPoints(pts);
+            if (pts.length < 2) setGeoCalibModalOpen(false);
+          }}
+          onSave={(c) => {
+            onSetGeoCalibration(c);
             setDrawTool('select');
           }}
+          onClear={() => {
+            onSetGeoCalibration(undefined);
+            setDrawTool('select');
+          }}
+          onClose={() => setDrawTool('select')}
         />
       )}
 
