@@ -260,45 +260,44 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* 지도 탭 (지도가 있을 때만) */}
+        {/* 지도 탭 + 데스크톱 액션 버튼 (한 줄에 배치 → 겹침 방지) */}
         <MapTabs
           maps={data.maps}
           markers={data.markers}
           currentMapId={data.currentMapId}
           onSelect={handleMapSelect}
           onUploadClick={triggerUpload}
-        />
-
-        {/* 데스크톱 현재 종류 표시 + 액션 버튼 (좌측 상단) */}
-        {data.currentMap && (
-          <div className="hidden md:flex absolute top-3 left-3 z-30 items-center gap-2">
-            {/* 편집 모드 토글 버튼 - 가장 눈에 띄게 */}
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                editMode
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
-                  : 'glass-panel text-text-muted hover:text-text border-transparent hover:border-border'
-              }`}
-              onClick={toggleEditMode}
-              title={editMode ? '편집 종료 (보기 모드로)' : '편집 시작'}
-            >
-              {editMode ? <Pencil size={13} /> : <Lock size={13} />}
-              {editMode ? '편집 중' : '보기'}
-            </button>
-            {currentTypeName && editMode && (
-              <div className="glass-panel rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
-                <span className="text-text-dim">현재:</span>
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    background: currentTypeColor,
-                    boxShadow: `0 0 6px ${currentTypeColor}`,
-                  }}
-                />
-                <span className="font-medium">{currentTypeName}</span>
-              </div>
-            )}
-            <div className="glass-panel rounded-lg flex items-center p-1">
+          leadingSlot={
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  editMode
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                    : 'bg-bg-elevated text-text-muted hover:text-text border-transparent hover:border-border'
+                }`}
+                onClick={toggleEditMode}
+                title={editMode ? '편집 종료 (보기 모드로)' : '편집 시작'}
+              >
+                {editMode ? <Pencil size={13} /> : <Lock size={13} />}
+                {editMode ? '편집 중' : '보기'}
+              </button>
+              {currentTypeName && editMode && data.currentMap && (
+                <div className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg bg-bg-elevated">
+                  <span className="text-text-dim">현재:</span>
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: currentTypeColor,
+                      boxShadow: `0 0 6px ${currentTypeColor}`,
+                    }}
+                  />
+                  <span className="font-medium">{currentTypeName}</span>
+                </div>
+              )}
+            </div>
+          }
+          trailingSlot={
+            <div className="hidden md:flex items-center gap-1">
               <button
                 className="btn btn-ghost !p-2 !rounded-md"
                 onClick={() => setShareOpen(true)}
@@ -320,30 +319,8 @@ export default function HomePage() {
                 </button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* 지도가 없을 때도 데스크톱에서 액션 버튼 표시 */}
-        {!data.currentMap && (
-          <div className="hidden md:flex absolute top-3 right-3 z-30 glass-panel rounded-lg p-1">
-            <button
-              className="btn btn-ghost !p-2 !rounded-md"
-              onClick={() => setShareOpen(true)}
-              title="공유"
-            >
-              <Share2 size={14} />
-            </button>
-            {fullscreen.isSupported && (
-              <button
-                className="btn btn-ghost !p-2 !rounded-md"
-                onClick={() => fullscreen.toggle(fullscreenTargetRef.current)}
-                title="전체화면"
-              >
-                <Maximize size={14} />
-              </button>
-            )}
-          </div>
-        )}
+          }
+        />
 
         {/* 지도 영역 */}
         <div className="flex-1 relative overflow-hidden">
