@@ -470,6 +470,7 @@ export default function HomePage() {
       {shareOpen && shareUrl && (
         <ShareModal
           url={shareUrl}
+          gpsKey={data.appSettings?.gps_key}
           isCloudConnected={data.isCloudConnected}
           onClose={() => setShareOpen(false)}
         />

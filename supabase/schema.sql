@@ -38,6 +38,13 @@ create table if not exists public.markers (
 
 create index if not exists markers_map_id_idx on public.markers(map_id);
 
+-- 이동 애니메이션 동기화용 컬럼 (모바일 백그라운드에서도 끊김 없이 동작)
+alter table public.markers add column if not exists moving_from_x double precision;
+alter table public.markers add column if not exists moving_from_y double precision;
+alter table public.markers add column if not exists moving_route jsonb;
+alter table public.markers add column if not exists moving_started_at timestamptz;
+alter table public.markers add column if not exists moving_duration_ms integer;
+
 -- 마커 종류 테이블
 create table if not exists public.marker_types (
   id text primary key,

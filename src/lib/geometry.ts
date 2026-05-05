@@ -412,6 +412,80 @@ export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+/**
+ * 마커가 이동 중인지 + 현재 시각의 보간 위치를 계산.
+ * 시간 기반이라 백그라운드 후 복귀해도 정확한 위치를 즉시 산출.
+ *
+ * @returns
+ *  - { animating: false, position: 마커.x/y } : 이동 중 아님 (또는 종료됨)
+ *  - { animating: true, position: 보간된 좌표 } : 이동 중
+ */
+export function computeMarkerPosition(marker: {
+  x: number;
+  y: number;
+  moving_from_x?: number | null;
+  moving_from_y?: number | null;
+  moving_route?: { x: number; y: number }[] | null;
+  moving_started_at?: string | null;
+  moving_duration_ms?: number | null;
+}): { animating: boolean; position: Point2D; progress: number } {
+  if (
+    !marker.moving_started_at ||
+    !marker.moving_duration_ms ||
+    marker.moving_from_x === null ||
+    marker.moving_from_x === undefined ||
+    marker.moving_from_y === null ||
+    marker.moving_from_y === undefined
+  ) {
+    return {
+      animating: false,
+      position: { x: marker.x, y: marker.y },
+      progress: 1,
+    };
+  }
+
+  const startedAt = new Date(marker.moving_started_at).getTime();
+  if (Number.isNaN(startedAt)) {
+    return {
+      animating: false,
+      position: { x: marker.x, y: marker.y },
+      progress: 1,
+    };
+  }
+
+  const elapsed = Date.now() - startedAt;
+  const rawT = elapsed / marker.moving_duration_ms;
+
+  if (rawT >= 1) {
+    // 이미 완료됨
+    return {
+      animating: false,
+      position: { x: marker.x, y: marker.y },
+      progress: 1,
+    };
+  }
+
+  if (rawT <= 0) {
+    return {
+      animating: true,
+      position: { x: marker.moving_from_x, y: marker.moving_from_y },
+      progress: 0,
+    };
+  }
+
+  const eased = easeInOutCubic(rawT);
+  // 경로가 있으면 그 위에서 보간, 없으면 직선
+  const route =
+    marker.moving_route && marker.moving_route.length >= 2
+      ? marker.moving_route
+      : [
+          { x: marker.moving_from_x, y: marker.moving_from_y },
+          { x: marker.x, y: marker.y },
+        ];
+  const pos = pointAlongPolyline(route, eased);
+  return { animating: true, position: pos, progress: rawT };
+}
+
 /** 폴리라인 총 길이 (외부 export) */
 export function polylineLength(points: Point2D[]): number {
   return computePolylineLength(points);

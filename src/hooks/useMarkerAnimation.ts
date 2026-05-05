@@ -1,134 +1,70 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Point2D } from '../lib/types';
-import { pointAlongPolyline, polylineLength, easeInOutCubic } from '../lib/geometry';
-
-export interface MovementAnimation {
-  markerId: string;
-  route: Point2D[];
-  durationMs: number;
-  startedAt: number;
-  // 콜백: 끝났을 때 최종 위치를 저장
-  onComplete: (finalPos: Point2D) => void;
-}
-
-export interface ActiveMovement {
-  markerId: string;
-  currentPos: Point2D;
-  progress: number; // 0~1
-  totalDistance: number; // 정규화 거리
-  durationMs: number;
-}
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Marker } from '../lib/types';
+import { computeMarkerPosition } from '../lib/geometry';
 
 /**
- * 여러 마커가 동시에 길을 따라 이동하는 애니메이션을 관리.
- * - startMovement(markerId, route, durationMs)로 시작
- * - 매 프레임 currentPositions에서 markerId의 임시 위치를 가져갈 수 있음
- * - 종료되면 자동으로 onComplete 호출 + 목록에서 제거
+ * 여러 마커의 시간 기반 애니메이션을 매니징.
+ *
+ * 핵심:
+ * - 마커가 moving_started_at + moving_duration_ms를 가지고 있으면 자동으로 애니메이션
+ * - 매 프레임 현재 시각과 시작 시각의 차이로 진행률 계산 (RAF 멈췄다 돌아와도 정확)
+ * - 페이지가 백그라운드 → 포그라운드 복귀 시 즉시 재계산
+ * - 모든 마커가 이동 끝나면 RAF 루프 정지 (배터리 절약)
  */
-export function useMarkerAnimation() {
-  // 진행 중인 모든 애니메이션 (markerId → 정보)
-  const animationsRef = useRef<Map<string, MovementAnimation>>(new Map());
-  // 매 프레임 갱신되는 임시 위치 (리렌더 트리거용)
-  const [activeMovements, setActiveMovements] = useState<Map<string, ActiveMovement>>(
-    new Map()
-  );
+export function useMarkerAnimations(markers: Marker[]) {
+  // 타이머 트리거를 위한 카운터 (실제 위치는 매번 markers + 현재 시각으로 재계산)
+  const [tick, setTick] = useState(0);
   const rafRef = useRef<number | null>(null);
 
-  const tick = useCallback(() => {
-    const now = performance.now();
-    const animations = animationsRef.current;
-    if (animations.size === 0) {
+  const hasActiveAnimation = useCallback(() => {
+    const now = Date.now();
+    for (const m of markers) {
+      if (!m.moving_started_at || !m.moving_duration_ms) continue;
+      const startedAt = new Date(m.moving_started_at).getTime();
+      if (Number.isNaN(startedAt)) continue;
+      if (now - startedAt < m.moving_duration_ms) return true;
+    }
+    return false;
+  }, [markers]);
+
+  const loop = useCallback(() => {
+    if (!hasActiveAnimation()) {
       rafRef.current = null;
       return;
     }
+    setTick((t) => t + 1);
+    rafRef.current = requestAnimationFrame(loop);
+  }, [hasActiveAnimation]);
 
-    const next = new Map<string, ActiveMovement>();
-    const completed: MovementAnimation[] = [];
-
-    animations.forEach((anim, markerId) => {
-      const elapsed = now - anim.startedAt;
-      const rawT = Math.min(1, elapsed / anim.durationMs);
-      const eased = easeInOutCubic(rawT);
-      const pos = pointAlongPolyline(anim.route, eased);
-
-      next.set(markerId, {
-        markerId,
-        currentPos: pos,
-        progress: rawT,
-        totalDistance: polylineLength(anim.route),
-        durationMs: anim.durationMs,
-      });
-
-      if (rawT >= 1) {
-        completed.push(anim);
-      }
-    });
-
-    setActiveMovements(next);
-
-    // 완료된 것들 처리
-    if (completed.length > 0) {
-      for (const anim of completed) {
-        animations.delete(anim.markerId);
-        // 최종 위치 = 경로의 마지막 점
-        const finalPos = anim.route[anim.route.length - 1];
-        anim.onComplete(finalPos);
-      }
+  // markers가 변경될 때마다 루프 시작 (필요 시)
+  useEffect(() => {
+    if (hasActiveAnimation() && rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(loop);
     }
+    return () => {
+      // markers 변경으로 인한 cleanup 시에도 루프는 유지 (다음 effect가 다시 시작)
+    };
+  }, [markers, hasActiveAnimation, loop]);
 
-    if (animations.size > 0) {
-      rafRef.current = requestAnimationFrame(tick);
-    } else {
-      rafRef.current = null;
-      // 완료 직후 Map을 비우기
-      setActiveMovements(new Map());
-    }
-  }, []);
-
-  const ensureLoop = useCallback(() => {
-    if (rafRef.current === null) {
-      rafRef.current = requestAnimationFrame(tick);
-    }
-  }, [tick]);
-
-  const startMovement = useCallback(
-    (
-      markerId: string,
-      route: Point2D[],
-      durationMs: number,
-      onComplete: (finalPos: Point2D) => void
-    ) => {
-      if (route.length < 2) {
-        // 경로가 없으면 즉시 완료
-        onComplete(route[route.length - 1] || { x: 0.5, y: 0.5 });
-        return;
+  // 페이지가 다시 보이면 즉시 갱신 (백그라운드에서 RAF 멈췄다 돌아왔을 때 끊김 방지)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') {
+        // 즉시 한 번 갱신
+        setTick((t) => t + 1);
+        // 루프가 멈췄다면 재시작
+        if (hasActiveAnimation() && rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(loop);
+        }
       }
-      // 같은 마커가 이미 움직이고 있으면 교체
-      animationsRef.current.set(markerId, {
-        markerId,
-        route,
-        durationMs,
-        startedAt: performance.now(),
-        onComplete,
-      });
-      ensureLoop();
-    },
-    [ensureLoop]
-  );
-
-  const cancelMovement = useCallback((markerId: string) => {
-    animationsRef.current.delete(markerId);
-    setActiveMovements((prev) => {
-      if (!prev.has(markerId)) return prev;
-      const next = new Map(prev);
-      next.delete(markerId);
-      return next;
-    });
-  }, []);
-
-  const isAnimating = useCallback((markerId: string) => {
-    return animationsRef.current.has(markerId);
-  }, []);
+    };
+    document.addEventListener('visibilitychange', handler);
+    window.addEventListener('focus', handler);
+    return () => {
+      document.removeEventListener('visibilitychange', handler);
+      window.removeEventListener('focus', handler);
+    };
+  }, [hasActiveAnimation, loop]);
 
   // 언마운트 시 정리
   useEffect(() => {
@@ -137,14 +73,21 @@ export function useMarkerAnimation() {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      animationsRef.current.clear();
     };
   }, []);
 
-  return {
-    activeMovements,
-    startMovement,
-    cancelMovement,
-    isAnimating,
-  };
+  /**
+   * 특정 마커의 현재 위치를 가져옴 (이동 중이면 보간된 위치, 아니면 원본).
+   * tick에 의존성 없어 매 프레임 새 계산이 호출자에서 자연스럽게 일어남.
+   */
+  const getPosition = useCallback(
+    (marker: Marker) => {
+      // tick은 의존성 트리거용 (사용 안 함)
+      void tick;
+      return computeMarkerPosition(marker);
+    },
+    [tick]
+  );
+
+  return { getPosition };
 }

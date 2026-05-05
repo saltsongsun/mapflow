@@ -21,10 +21,23 @@ export interface Marker {
   type_id: string;
   /** 상태 ID (선택) - 미설정 시 상태 표시 안 함 */
   status_id?: string;
-  // 0~1 범위의 정규화된 좌표 (이미지 크기 무관)
+  // 0~1 범위의 정규화된 좌표 (이미지 크기 무관) - 이동 종료 후의 최종 위치
   x: number;
   y: number;
   note?: string;
+  /**
+   * 이동 중인 경우의 시작 위치 (정규화 좌표).
+   * 도착 시간이 지나면 자동으로 무시됨.
+   * 모든 클라이언트가 시간 기반으로 보간하므로 백그라운드 후 복귀해도 끊김 없음.
+   */
+  moving_from_x?: number | null;
+  moving_from_y?: number | null;
+  /** 이동에 사용할 경로 (정규화 좌표 배열, JSON) - null이면 직선 */
+  moving_route?: { x: number; y: number }[] | null;
+  /** 이동 시작 시각 (ISO 문자열). null이면 이동 없음. */
+  moving_started_at?: string | null;
+  /** 이동 지속 시간 (ms) */
+  moving_duration_ms?: number | null;
   created_at: string;
   updated_at: string;
 }

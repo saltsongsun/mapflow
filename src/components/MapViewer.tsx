@@ -44,7 +44,7 @@ import { DrawingTools, DrawTool } from './DrawingTools';
 import { CalibrationModal } from './CalibrationModal';
 import { GeoCalibrationModal } from './GeoCalibrationModal';
 import { ZoneArrivalPicker, ZoneArrivalMode } from './ZoneArrivalPicker';
-import { useMarkerAnimation } from '../hooks/useMarkerAnimation';
+import { useMarkerAnimations } from '../hooks/useMarkerAnimation';
 
 const ZONE_ARRIVAL_MODE_KEY = 'pb:zone-arrival-mode';
 
@@ -143,8 +143,8 @@ export function MapViewer({
     }
   };
 
-  // 마커 이동 애니메이션
-  const animation = useMarkerAnimation();
+  // 마커 이동 애니메이션 - 마커 자체의 moving_* 필드 기반 시간 보간
+  const { getPosition } = useMarkerAnimations(markers);
 
   // 빈 공간 클릭 vs 팬 구분용
   const pointerStart = useRef<{ x: number; y: number; t: number } | null>(null);
@@ -336,10 +336,28 @@ export function MapViewer({
       return acc + distance(route[i - 1], p);
     }, 0);
     const duration = computeMoveDurationMs(totalNormDist, map);
+    const startedAt = new Date().toISOString();
 
-    animation.startMovement(marker.id, route, duration, (finalPos) => {
-      onUpdateMarker(marker.id, { x: finalPos.x, y: finalPos.y });
+    // DB에 이동 정보 저장 (모든 클라이언트가 시간 기반으로 보간)
+    onUpdateMarker(marker.id, {
+      x: finalTarget.x,
+      y: finalTarget.y,
+      moving_from_x: fromPos.x,
+      moving_from_y: fromPos.y,
+      moving_route: route,
+      moving_started_at: startedAt,
+      moving_duration_ms: duration,
+    });
 
+    // 이동 종료 후 moving_* 필드 정리 (DB 부담 줄이고, 새 이동 시 충돌 방지)
+    setTimeout(() => {
+      onUpdateMarker(marker.id, {
+        moving_from_x: null,
+        moving_from_y: null,
+        moving_route: null,
+        moving_started_at: null,
+        moving_duration_ms: null,
+      });
       // 구역에 도착했으면 picker 표시
       if (arrivedZone) {
         setLastArrival({
@@ -349,7 +367,7 @@ export function MapViewer({
           exactPos: exactDrop,
         });
       }
-    });
+    }, duration + 100);
   };
 
   /**
@@ -376,17 +394,32 @@ export function MapViewer({
       return;
     }
 
-    // 거리 짧으면 직선, 그 외엔 길 따라가기
     const route = buildMovementPath(fromPos, newTarget, paths);
     const totalNormDist = route.reduce((acc, p, i) => {
       if (i === 0) return 0;
       return acc + distance(route[i - 1], p);
     }, 0);
     const duration = computeMoveDurationMs(totalNormDist, map);
+    const startedAt = new Date().toISOString();
 
-    animation.startMovement(marker.id, route, duration, (finalPos) => {
-      onUpdateMarker(marker.id, { x: finalPos.x, y: finalPos.y });
+    onUpdateMarker(marker.id, {
+      x: newTarget.x,
+      y: newTarget.y,
+      moving_from_x: fromPos.x,
+      moving_from_y: fromPos.y,
+      moving_route: route,
+      moving_started_at: startedAt,
+      moving_duration_ms: duration,
     });
+    setTimeout(() => {
+      onUpdateMarker(marker.id, {
+        moving_from_x: null,
+        moving_from_y: null,
+        moving_route: null,
+        moving_started_at: null,
+        moving_duration_ms: null,
+      });
+    }, duration + 100);
   };
 
   return (
@@ -506,12 +539,11 @@ export function MapViewer({
               const status = marker.status_id
                 ? markerStatuses.find((s) => s.id === marker.status_id)
                 : undefined;
-              // 애니메이션 중이면 임시 위치 사용
-              const moving = animation.activeMovements.get(marker.id);
-              const displayMarker = moving
-                ? { ...marker, x: moving.currentPos.x, y: moving.currentPos.y }
+              // 시간 기반 위치 계산 (이동 중이면 보간된 위치)
+              const { animating, position } = getPosition(marker);
+              const displayMarker = animating
+                ? { ...marker, x: position.x, y: position.y }
                 : marker;
-              const isAnim = !!moving;
               return (
                 <MarkerDot
                   key={marker.id}
@@ -520,11 +552,11 @@ export function MapViewer({
                   status={status}
                   scale={scale}
                   showLabel={showLabels}
-                  // 선택/추가 모드일 때만 마커 클릭/드래그 가능. 그리기 도구일 땐 비활성.
+                  // 선택/추가 모드일 때만 마커 클릭/드래그 가능. 그리기 도구일 땐 비활성. 애니메이션 중에도 비활성.
                   editable={
                     editMode &&
                     (drawTool === 'select' || drawTool === 'add') &&
-                    !isAnim
+                    !animating
                   }
                   containerRef={imageRef}
                   onDragStart={() => setPanDisabled(true)}
