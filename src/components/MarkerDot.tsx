@@ -7,6 +7,11 @@ interface MarkerDotProps {
   scale: number; // 현재 줌 레벨 (마커 크기 역보정에 사용)
   showLabel: boolean;
   /**
+   * 편집 가능 여부. false면 마커는 단순 표시용으로 동작 (클릭/드래그 비활성).
+   * 부모(지도) 영역의 팬/줌은 정상 동작하도록 포인터 이벤트를 통과시킴.
+   */
+  editable: boolean;
+  /**
    * 부모(이미지) 요소의 화면상 bounding rect를 얻기 위한 ref.
    * 드래그 시 마커 위치를 0~1 정규화 좌표로 환산하기 위해 필요.
    */
@@ -29,6 +34,7 @@ export function MarkerDot({
   type,
   scale,
   showLabel,
+  editable,
   containerRef,
   onDragStart,
   onDragEnd,
@@ -199,21 +205,26 @@ export function MarkerDot({
 
   return (
     <div
-      className={`marker-dot${isDragging ? ' marker-dragging' : ''}`}
+      className={`marker-dot${isDragging ? ' marker-dragging' : ''}${
+        !editable ? ' marker-readonly' : ''
+      }`}
       style={{
         left: `${displayX * 100}%`,
         top: `${displayY * 100}%`,
         transform: `scale(${inverseScale * (isDragging ? 1.25 : 1)})`,
         // @ts-ignore CSS custom property
         '--marker-color': color,
-        touchAction: 'none', // 터치 디바이스에서 브라우저 기본 제스처 방지
-        cursor: isDragging ? 'grabbing' : 'grab',
+        // 편집 모드일 때만 포인터 이벤트 받기. 보기 모드에서는 클릭이 지도로 통과되어
+        // 마커 위에서도 자유롭게 팬/줌 가능.
+        pointerEvents: editable ? 'auto' : 'none',
+        touchAction: 'none',
+        cursor: editable ? (isDragging ? 'grabbing' : 'grab') : 'default',
         zIndex: isDragging ? 50 : 10,
       }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      onPointerDown={editable ? handlePointerDown : undefined}
+      onPointerMove={editable ? handlePointerMove : undefined}
+      onPointerUp={editable ? handlePointerUp : undefined}
+      onPointerCancel={editable ? handlePointerCancel : undefined}
     >
       <div className="marker-pulse" />
       <div className="marker-pulse-2" />

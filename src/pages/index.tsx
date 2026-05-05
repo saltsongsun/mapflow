@@ -11,6 +11,8 @@ import {
   Share2,
   Maximize,
   Minimize,
+  Lock,
+  Pencil,
 } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { useMapUpload } from '../hooks/useMapUpload';
@@ -27,6 +29,7 @@ const MapViewer = dynamic(
 );
 
 const SUPABASE_BANNER_DISMISS_KEY = 'pb:supabase-banner-dismissed';
+const EDIT_MODE_KEY = 'pb:edit-mode';
 
 export default function HomePage() {
   const data = useAppData();
@@ -37,6 +40,26 @@ export default function HomePage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [bannerDismissed, setBannerDismissed] = useState(true);
+  // 편집 모드 - 기본은 보기 모드(false), sessionStorage에 저장해 새로고침 후에도 유지
+  const [editMode, setEditMode] = useState(false);
+
+  // 편집 모드 복원 (sessionStorage - 탭 닫으면 초기화되어 안전한 보기 모드로 시작)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem(EDIT_MODE_KEY);
+      if (saved === '1') setEditMode(true);
+    }
+  }, []);
+
+  const toggleEditMode = () => {
+    setEditMode((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(EDIT_MODE_KEY, next ? '1' : '0');
+      }
+      return next;
+    });
+  };
 
   // 클라이언트에서만 현재 URL 가져옴
   useEffect(() => {
@@ -197,6 +220,19 @@ export default function HomePage() {
               </div>
             )}
           </div>
+          {data.currentMap && (
+            <button
+              className={`btn !p-2 transition-colors ${
+                editMode
+                  ? '!bg-amber-500/15 !border-amber-500/40 !text-amber-300 border'
+                  : 'btn-ghost'
+              }`}
+              onClick={toggleEditMode}
+              title={editMode ? '편집 종료' : '편집 시작'}
+            >
+              {editMode ? <Pencil size={16} /> : <Lock size={16} />}
+            </button>
+          )}
           {data.markerTypes.length > 0 && (
             <button
               className="btn btn-ghost !p-2"
@@ -236,9 +272,22 @@ export default function HomePage() {
         {/* 데스크톱 현재 종류 표시 + 액션 버튼 (좌측 상단) */}
         {data.currentMap && (
           <div className="hidden md:flex absolute top-3 left-3 z-30 items-center gap-2">
-            {currentTypeName && (
+            {/* 편집 모드 토글 버튼 - 가장 눈에 띄게 */}
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                editMode
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                  : 'glass-panel text-text-muted hover:text-text border-transparent hover:border-border'
+              }`}
+              onClick={toggleEditMode}
+              title={editMode ? '편집 종료 (보기 모드로)' : '편집 시작'}
+            >
+              {editMode ? <Pencil size={13} /> : <Lock size={13} />}
+              {editMode ? '편집 중' : '보기'}
+            </button>
+            {currentTypeName && editMode && (
               <div className="glass-panel rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
-                <span className="text-text-dim">현재 마커:</span>
+                <span className="text-text-dim">현재:</span>
                 <div
                   className="w-2 h-2 rounded-full"
                   style={{
@@ -307,6 +356,7 @@ export default function HomePage() {
                 markers={data.currentMarkers}
                 markerTypes={data.markerTypes}
                 currentTypeId={data.currentTypeId}
+                editMode={editMode}
                 onAddMarker={(x, y, typeId) =>
                   data.addMarker({
                     map_id: data.currentMap!.id,

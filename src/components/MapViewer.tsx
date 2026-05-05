@@ -15,6 +15,8 @@ import {
   Minimize,
   Eye,
   EyeOff,
+  Lock,
+  Pencil,
 } from 'lucide-react';
 import { MapDoc, Marker, MarkerType } from '../lib/types';
 import { MarkerDot } from './MarkerDot';
@@ -24,6 +26,8 @@ interface MapViewerProps {
   markers: Marker[];
   markerTypes: MarkerType[];
   currentTypeId: string;
+  /** 편집 모드 (false면 마커 추가/이동/편집 불가, 보기만 가능) */
+  editMode: boolean;
   onAddMarker: (x: number, y: number, typeId: string) => void;
   onRemoveMarker: (id: string) => void;
   onUpdateMarker: (id: string, patch: Partial<Marker>) => void;
@@ -36,6 +40,7 @@ export function MapViewer({
   markers,
   markerTypes,
   currentTypeId,
+  editMode,
   onAddMarker,
   onRemoveMarker,
   onUpdateMarker,
@@ -66,6 +71,8 @@ export function MapViewer({
     const start = pointerStart.current;
     pointerStart.current = null;
     if (!start) return;
+    // 편집 모드가 아니면 빈 공간 클릭 무시 (보기 전용)
+    if (!editMode) return;
     // 마커 드래그가 진행 중이었다면 빈 공간 클릭으로 새 마커 만들지 않음
     if (panDisabled) return;
     const dx = Math.abs(e.clientX - start.x);
@@ -111,7 +118,19 @@ export function MapViewer({
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-bg">
+    <div
+      className={`relative w-full h-full overflow-hidden bg-bg ${
+        editMode ? 'edit-mode-active' : ''
+      }`}
+    >
+      {/* 편집 모드 표시 배지 - 화면 상단 중앙 */}
+      {editMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 backdrop-blur-md text-amber-300 text-xs font-medium shadow-lg fade-up">
+          <Pencil size={12} />
+          <span>편집 모드</span>
+          <span className="text-amber-300/60">· 빈 곳을 클릭해 마커 추가</span>
+        </div>
+      )}
       <TransformWrapper
         ref={transformRef}
         initialScale={1}
@@ -162,6 +181,7 @@ export function MapViewer({
                   type={type}
                   scale={scale}
                   showLabel={showLabels}
+                  editable={editMode}
                   containerRef={imageRef}
                   onDragStart={() => setPanDisabled(true)}
                   onDragEnd={() => setPanDisabled(false)}
