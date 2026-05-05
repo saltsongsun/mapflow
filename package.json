@@ -16,12 +16,14 @@
     "browser-image-compression": "^2.0.2",
     "react-zoom-pan-pinch": "^3.6.1",
     "lucide-react": "^0.460.0",
+    "qrcode": "^1.5.4",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/qrcode": "^1.5.5",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^8",

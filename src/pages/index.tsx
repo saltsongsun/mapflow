@@ -1,11 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Menu, MapPin, Image as ImageIcon, AlertTriangle, X, Upload, Layers } from 'lucide-react';
+import {
+  Menu,
+  MapPin,
+  Image as ImageIcon,
+  AlertTriangle,
+  X,
+  Upload,
+  Layers,
+  Share2,
+  Maximize,
+  Minimize,
+} from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { useMapUpload } from '../hooks/useMapUpload';
+import { useFullscreen } from '../hooks/useFullscreen';
 import { Sidebar } from '../components/Sidebar';
 import { MarkerTypeManager } from '../components/MarkerTypeManager';
 import { MapTabs } from '../components/MapTabs';
+import { ShareModal } from '../components/ShareModal';
 
 // 지도 뷰어는 클라이언트 전용 (window 의존)
 const MapViewer = dynamic(
@@ -17,9 +30,20 @@ const SUPABASE_BANNER_DISMISS_KEY = 'pb:supabase-banner-dismissed';
 
 export default function HomePage() {
   const data = useAppData();
+  const fullscreen = useFullscreen();
+  const fullscreenTargetRef = useRef<HTMLDivElement>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [typeManagerOpen, setTypeManagerOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
   const [bannerDismissed, setBannerDismissed] = useState(true);
+
+  // 클라이언트에서만 현재 URL 가져옴
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShareUrl(window.location.origin + window.location.pathname);
+    }
+  }, []);
 
   // 페이지에서도 업로드 가능하게 (탭의 + 버튼용)
   const { fileInputRef, handleUpload, triggerUpload } = useMapUpload({
@@ -70,7 +94,10 @@ export default function HomePage() {
   const currentTypeColor = data.markerTypes.find((t) => t.id === data.currentTypeId)?.color;
 
   return (
-    <div className="h-screen w-screen flex bg-bg overflow-hidden noise-bg">
+    <div
+      ref={fullscreenTargetRef}
+      className="h-screen w-screen flex bg-bg overflow-hidden noise-bg"
+    >
       {/* 숨겨진 파일 인풋 (탭의 + 버튼용) */}
       <input
         ref={fileInputRef}
@@ -179,6 +206,22 @@ export default function HomePage() {
               <Layers size={16} />
             </button>
           )}
+          <button
+            className="btn btn-ghost !p-2"
+            onClick={() => setShareOpen(true)}
+            title="공유"
+          >
+            <Share2 size={16} />
+          </button>
+          {fullscreen.isSupported && (
+            <button
+              className="btn btn-ghost !p-2"
+              onClick={() => fullscreen.toggle(fullscreenTargetRef.current)}
+              title={fullscreen.isFullscreen ? '전체화면 종료' : '전체화면'}
+            >
+              {fullscreen.isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+          )}
         </div>
 
         {/* 지도 탭 (지도가 있을 때만) */}
@@ -190,18 +233,66 @@ export default function HomePage() {
           onUploadClick={triggerUpload}
         />
 
-        {/* 데스크톱 현재 종류 표시 (좌측 상단) */}
-        {data.currentMap && currentTypeName && (
-          <div className="hidden md:flex absolute top-3 right-32 z-30 glass-panel rounded-lg px-3 py-1.5 items-center gap-2 text-xs">
-            <span className="text-text-dim">현재 마커:</span>
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{
-                background: currentTypeColor,
-                boxShadow: `0 0 6px ${currentTypeColor}`,
-              }}
-            />
-            <span className="font-medium">{currentTypeName}</span>
+        {/* 데스크톱 현재 종류 표시 + 액션 버튼 (좌측 상단) */}
+        {data.currentMap && (
+          <div className="hidden md:flex absolute top-3 left-3 z-30 items-center gap-2">
+            {currentTypeName && (
+              <div className="glass-panel rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
+                <span className="text-text-dim">현재 마커:</span>
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    background: currentTypeColor,
+                    boxShadow: `0 0 6px ${currentTypeColor}`,
+                  }}
+                />
+                <span className="font-medium">{currentTypeName}</span>
+              </div>
+            )}
+            <div className="glass-panel rounded-lg flex items-center p-1">
+              <button
+                className="btn btn-ghost !p-2 !rounded-md"
+                onClick={() => setShareOpen(true)}
+                title="공유"
+              >
+                <Share2 size={14} />
+              </button>
+              {fullscreen.isSupported && (
+                <button
+                  className="btn btn-ghost !p-2 !rounded-md"
+                  onClick={() => fullscreen.toggle(fullscreenTargetRef.current)}
+                  title={fullscreen.isFullscreen ? '전체화면 종료' : '전체화면'}
+                >
+                  {fullscreen.isFullscreen ? (
+                    <Minimize size={14} />
+                  ) : (
+                    <Maximize size={14} />
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 지도가 없을 때도 데스크톱에서 액션 버튼 표시 */}
+        {!data.currentMap && (
+          <div className="hidden md:flex absolute top-3 right-3 z-30 glass-panel rounded-lg p-1">
+            <button
+              className="btn btn-ghost !p-2 !rounded-md"
+              onClick={() => setShareOpen(true)}
+              title="공유"
+            >
+              <Share2 size={14} />
+            </button>
+            {fullscreen.isSupported && (
+              <button
+                className="btn btn-ghost !p-2 !rounded-md"
+                onClick={() => fullscreen.toggle(fullscreenTargetRef.current)}
+                title="전체화면"
+              >
+                <Maximize size={14} />
+              </button>
+            )}
           </div>
         )}
 
@@ -226,6 +317,12 @@ export default function HomePage() {
                 }
                 onRemoveMarker={data.removeMarker}
                 onUpdateMarker={data.updateMarker}
+                isFullscreen={fullscreen.isFullscreen}
+                onToggleFullscreen={
+                  fullscreen.isSupported
+                    ? () => fullscreen.toggle(fullscreenTargetRef.current)
+                    : undefined
+                }
               />
             )
           ) : (
@@ -243,6 +340,15 @@ export default function HomePage() {
           types={data.markerTypes}
           onSave={data.saveMarkerTypes}
           onClose={() => setTypeManagerOpen(false)}
+        />
+      )}
+
+      {/* === 공유 모달 === */}
+      {shareOpen && shareUrl && (
+        <ShareModal
+          url={shareUrl}
+          isCloudConnected={data.isCloudConnected}
+          onClose={() => setShareOpen(false)}
         />
       )}
     </div>

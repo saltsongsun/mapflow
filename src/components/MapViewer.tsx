@@ -4,7 +4,18 @@ import {
   TransformComponent,
   ReactZoomPanPinchRef,
 } from 'react-zoom-pan-pinch';
-import { Plus, Minus, Maximize2, Crosshair, Trash2, X } from 'lucide-react';
+import {
+  Plus,
+  Minus,
+  Maximize2,
+  Crosshair,
+  Trash2,
+  X,
+  Maximize,
+  Minimize,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { MapDoc, Marker, MarkerType } from '../lib/types';
 import { MarkerDot } from './MarkerDot';
 
@@ -16,6 +27,8 @@ interface MapViewerProps {
   onAddMarker: (x: number, y: number, typeId: string) => void;
   onRemoveMarker: (id: string) => void;
   onUpdateMarker: (id: string, patch: Partial<Marker>) => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export function MapViewer({
@@ -26,6 +39,8 @@ export function MapViewer({
   onAddMarker,
   onRemoveMarker,
   onUpdateMarker,
+  isFullscreen,
+  onToggleFullscreen,
 }: MapViewerProps) {
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -187,14 +202,24 @@ export function MapViewer({
         {(scale * 100).toFixed(0)}%
       </div>
 
-      {/* === 라벨 토글 === */}
-      <div className="absolute top-4 right-4 glass-panel rounded-lg overflow-hidden">
+      {/* === 우측 상단 컨트롤 === */}
+      <div className="absolute top-4 right-4 flex items-center gap-1 glass-panel rounded-lg p-1">
         <button
-          className="btn btn-ghost !rounded-none !border-0"
+          className="btn btn-ghost !p-2 !rounded-md"
           onClick={() => setShowLabels((s) => !s)}
+          title={showLabels ? '라벨 숨김' : '라벨 표시'}
         >
-          {showLabels ? '라벨 숨김' : '라벨 표시'}
+          {showLabels ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
+        {onToggleFullscreen && (
+          <button
+            className="btn btn-ghost !p-2 !rounded-md"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? '전체화면 종료' : '전체화면'}
+          >
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+          </button>
+        )}
       </div>
 
       {/* === 마커 편집 모달 === */}
