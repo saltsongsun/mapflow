@@ -1,9 +1,10 @@
-import { MapDoc, Marker, MarkerType, Zone, PathLine } from './types';
+import { MapDoc, Marker, MarkerType, MarkerStatus, Zone, PathLine } from './types';
 
 const KEYS = {
   maps: 'pb:maps',
   markers: 'pb:markers',
   markerTypes: 'pb:markerTypes',
+  markerStatuses: 'pb:markerStatuses',
   zones: 'pb:zones',
   paths: 'pb:paths',
   currentMapId: 'pb:currentMapId',
@@ -52,6 +53,18 @@ export const localStore = {
     }
   },
   setMarkerTypes: (t: MarkerType[]) => safeSet(KEYS.markerTypes, t),
+
+  getMarkerStatuses: (): MarkerStatus[] | null => {
+    if (!isClient()) return null;
+    const raw = localStorage.getItem(KEYS.markerStatuses);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  },
+  setMarkerStatuses: (s: MarkerStatus[]) => safeSet(KEYS.markerStatuses, s),
 
   getZones: (): Zone[] => safeGet(KEYS.zones, []),
   setZones: (z: Zone[]) => safeSet(KEYS.zones, z),

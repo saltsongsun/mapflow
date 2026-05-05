@@ -19,6 +19,7 @@ import { useMapUpload } from '../hooks/useMapUpload';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { Sidebar } from '../components/Sidebar';
 import { MarkerTypeManager } from '../components/MarkerTypeManager';
+import { MarkerStatusManager } from '../components/MarkerStatusManager';
 import { MapTabs } from '../components/MapTabs';
 import { ShareModal } from '../components/ShareModal';
 
@@ -35,12 +36,13 @@ export default function HomePage() {
   const data = useAppData();
   const fullscreen = useFullscreen();
   const fullscreenTargetRef = useRef<HTMLDivElement>(null);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // 사이드바는 평상시 접혀있음 (데스크톱/모바일 통합 햄버거 방식)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [typeManagerOpen, setTypeManagerOpen] = useState(false);
+  const [statusManagerOpen, setStatusManagerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [bannerDismissed, setBannerDismissed] = useState(true);
-  // 편집 모드 - 기본은 보기 모드(false), sessionStorage에 저장해 새로고침 후에도 유지
   const [editMode, setEditMode] = useState(false);
 
   // 편집 모드 복원 (sessionStorage - 탭 닫으면 초기화되어 안전한 보기 모드로 시작)
@@ -96,7 +98,7 @@ export default function HomePage() {
 
   const handleMapSelect = (id: string) => {
     data.selectMap(id);
-    setMobileSidebarOpen(false);
+    setSidebarOpen(false);
   };
 
   const dismissBanner = () => {
@@ -130,33 +132,16 @@ export default function HomePage() {
         onChange={handleUpload}
       />
 
-      {/* === 데스크톱 사이드바 === */}
-      <div className="hidden md:block">
-        <Sidebar
-          maps={data.maps}
-          markers={data.markers}
-          markerTypes={data.markerTypes}
-          currentMapId={data.currentMapId}
-          currentTypeId={data.currentTypeId}
-          syncStatus={data.syncStatus}
-          isCloudConnected={data.isCloudConnected}
-          onAddMap={(d) => data.addMap(d)}
-          onSelectMap={handleMapSelect}
-          onRemoveMap={data.removeMap}
-          onSelectType={data.selectType}
-          onOpenTypeManager={() => setTypeManagerOpen(true)}
-        />
-      </div>
-
-      {/* === 모바일 사이드바 === */}
-      {mobileSidebarOpen && (
+      {/* === 사이드바 (햄버거로 토글, 평상시 접힘) === */}
+      {sidebarOpen && (
         <>
-          <div className="md:hidden backdrop" onClick={() => setMobileSidebarOpen(false)} />
-          <div className="md:hidden fixed left-0 top-0 bottom-0 z-50">
+          <div className="backdrop" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 z-50">
             <Sidebar
               maps={data.maps}
               markers={data.markers}
               markerTypes={data.markerTypes}
+              markerStatuses={data.markerStatuses}
               currentMapId={data.currentMapId}
               currentTypeId={data.currentTypeId}
               syncStatus={data.syncStatus}
@@ -166,7 +151,8 @@ export default function HomePage() {
               onRemoveMap={data.removeMap}
               onSelectType={data.selectType}
               onOpenTypeManager={() => setTypeManagerOpen(true)}
-              onClose={() => setMobileSidebarOpen(false)}
+              onOpenStatusManager={() => setStatusManagerOpen(true)}
+              onClose={() => setSidebarOpen(false)}
             />
           </div>
         </>
@@ -199,7 +185,8 @@ export default function HomePage() {
         <div className="md:hidden glass-panel border-b border-border px-3 py-2 flex items-center gap-2 flex-shrink-0">
           <button
             className="btn btn-ghost !p-2"
-            onClick={() => setMobileSidebarOpen(true)}
+            onClick={() => setSidebarOpen(true)}
+            title="메뉴"
           >
             <Menu size={18} />
           </button>
@@ -270,6 +257,13 @@ export default function HomePage() {
           leadingSlot={
             <div className="hidden md:flex items-center gap-2">
               <button
+                className="btn btn-ghost !p-2 !rounded-md"
+                onClick={() => setSidebarOpen(true)}
+                title="메뉴"
+              >
+                <Menu size={16} />
+              </button>
+              <button
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                   editMode
                     ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
@@ -332,6 +326,7 @@ export default function HomePage() {
                 map={data.currentMap}
                 markers={data.currentMarkers}
                 markerTypes={data.markerTypes}
+                markerStatuses={data.markerStatuses}
                 zones={data.currentZones}
                 paths={data.currentPaths}
                 currentTypeId={data.currentTypeId}
@@ -374,6 +369,15 @@ export default function HomePage() {
           types={data.markerTypes}
           onSave={data.saveMarkerTypes}
           onClose={() => setTypeManagerOpen(false)}
+        />
+      )}
+
+      {/* === 마커 상태 관리 모달 === */}
+      {statusManagerOpen && (
+        <MarkerStatusManager
+          statuses={data.markerStatuses}
+          onSave={data.saveMarkerStatuses}
+          onClose={() => setStatusManagerOpen(false)}
         />
       )}
 

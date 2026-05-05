@@ -21,6 +21,7 @@ import {
   MapDoc,
   Marker,
   MarkerType,
+  MarkerStatus,
   Zone,
   PathLine,
   Point2D,
@@ -46,6 +47,7 @@ interface MapViewerProps {
   map: MapDoc;
   markers: Marker[];
   markerTypes: MarkerType[];
+  markerStatuses: MarkerStatus[];
   zones: Zone[];
   paths: PathLine[];
   currentTypeId: string;
@@ -68,6 +70,7 @@ export function MapViewer({
   map,
   markers,
   markerTypes,
+  markerStatuses,
   zones,
   paths,
   currentTypeId,
@@ -92,6 +95,7 @@ export function MapViewer({
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
   const [editNote, setEditNote] = useState('');
   const [editTypeId, setEditTypeId] = useState('');
+  const [editStatusId, setEditStatusId] = useState<string>('');
   const [panDisabled, setPanDisabled] = useState(false);
 
   // 그리기 도구 상태
@@ -217,12 +221,14 @@ export function MapViewer({
     setSelectedMarker(marker);
     setEditNote(marker.note || '');
     setEditTypeId(marker.type_id);
+    setEditStatusId(marker.status_id || '');
   };
 
   const closeEditor = () => {
     setSelectedMarker(null);
     setEditNote('');
     setEditTypeId('');
+    setEditStatusId('');
   };
 
   const saveEditor = () => {
@@ -230,6 +236,7 @@ export function MapViewer({
     onUpdateMarker(selectedMarker.id, {
       note: editNote || undefined,
       type_id: editTypeId,
+      status_id: editStatusId || undefined,
     });
     closeEditor();
   };
@@ -433,6 +440,9 @@ export function MapViewer({
             {/* 마커들 */}
             {markers.map((marker) => {
               const type = markerTypes.find((t) => t.id === marker.type_id);
+              const status = marker.status_id
+                ? markerStatuses.find((s) => s.id === marker.status_id)
+                : undefined;
               // 애니메이션 중이면 임시 위치 사용
               const moving = animation.activeMovements.get(marker.id);
               const displayMarker = moving
@@ -444,6 +454,7 @@ export function MapViewer({
                   key={marker.id}
                   marker={displayMarker}
                   type={type}
+                  status={status}
                   scale={scale}
                   showLabel={showLabels}
                   // 애니메이션 중에는 드래그/클릭 비활성화
@@ -643,14 +654,69 @@ export function MapViewer({
               </div>
 
               <div>
-                <label className="text-xs text-text-muted mb-1.5 block">메모 (선택)</label>
+                <label className="text-xs text-text-muted mb-1.5 block">상태</label>
+                {markerStatuses.length === 0 ? (
+                  <p className="text-xs text-text-dim italic py-2">
+                    상태가 정의되지 않았습니다. 햄버거 메뉴에서 상태를 추가하세요.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                        editStatusId === ''
+                          ? 'bg-bg-elevated border-border-strong text-text'
+                          : 'bg-transparent border-border text-text-muted hover:text-text hover:border-border-strong'
+                      }`}
+                      onClick={() => setEditStatusId('')}
+                    >
+                      없음
+                    </button>
+                    {markerStatuses.map((s) => {
+                      const active = editStatusId === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                            active
+                              ? 'text-white'
+                              : 'bg-transparent text-text-muted hover:text-text border-border hover:border-border-strong'
+                          }`}
+                          style={
+                            active
+                              ? {
+                                  background: s.color,
+                                  borderColor: s.color,
+                                  boxShadow: `0 0 12px ${s.color}60`,
+                                }
+                              : undefined
+                          }
+                          onClick={() => setEditStatusId(s.id)}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              background: active ? 'white' : s.color,
+                              boxShadow: active ? 'none' : `0 0 6px ${s.color}`,
+                            }}
+                          />
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs text-text-muted mb-1.5 block">
+                  메모 (선택)
+                </label>
                 <input
                   className="input"
                   type="text"
                   value={editNote}
                   onChange={(e) => setEditNote(e.target.value)}
                   placeholder="예: 김OO, 점검 중..."
-                  autoFocus
                 />
               </div>
 

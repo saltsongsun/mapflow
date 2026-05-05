@@ -1,9 +1,10 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { Marker, MarkerType } from '../lib/types';
+import { Marker, MarkerType, MarkerStatus } from '../lib/types';
 
 interface MarkerDotProps {
   marker: Marker;
   type: MarkerType | undefined;
+  status?: MarkerStatus;
   scale: number; // 현재 줌 레벨 (마커 크기 역보정에 사용)
   showLabel: boolean;
   /**
@@ -32,6 +33,7 @@ const LONG_PRESS_THRESHOLD = 180; // 또는 이 시간(ms) 이상 누르면 드�
 export function MarkerDot({
   marker,
   type,
+  status,
   scale,
   showLabel,
   editable,
@@ -229,9 +231,23 @@ export function MarkerDot({
       <div className="marker-pulse" />
       <div className="marker-pulse-2" />
       <div className="marker-core" />
+      {/* 상태 배지 - 마커 우상단에 작은 점 + 라벨 색상 */}
+      {status && (
+        <div
+          className="marker-status-badge"
+          style={{
+            // @ts-ignore CSS variable
+            '--status-color': status.color,
+          }}
+          title={status.label}
+        />
+      )}
       {showLabel && type && (
         <div className="marker-label" style={{ color: color }}>
           {type.label}
+          {status ? (
+            <span style={{ color: status.color, marginLeft: 4 }}>· {status.label}</span>
+          ) : null}
           {marker.note ? ` · ${marker.note}` : ''}
         </div>
       )}

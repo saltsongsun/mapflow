@@ -6,16 +6,20 @@ import {
   MapDoc,
   Marker,
   MarkerType,
+  MarkerStatus,
   Zone,
   PathLine,
   MapCalibration,
   DEFAULT_MARKER_TYPES,
+  DEFAULT_MARKER_STATUSES,
 } from '../lib/types';
 
 export function useAppData() {
   const [maps, setMaps] = useState<MapDoc[]>([]);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [markerTypes, setMarkerTypes] = useState<MarkerType[]>(DEFAULT_MARKER_TYPES);
+  const [markerStatuses, setMarkerStatuses] =
+    useState<MarkerStatus[]>(DEFAULT_MARKER_STATUSES);
   const [zones, setZones] = useState<Zone[]>([]);
   const [paths, setPaths] = useState<PathLine[]>([]);
   const [currentMapId, setCurrentMapId] = useState<string | null>(null);
@@ -36,6 +40,7 @@ export function useAppData() {
       const localMaps = localStore.getMaps();
       const localMarkers = localStore.getMarkers();
       const localTypes = localStore.getMarkerTypes() || DEFAULT_MARKER_TYPES;
+      const localStatuses = localStore.getMarkerStatuses() || DEFAULT_MARKER_STATUSES;
       const localZones = localStore.getZones();
       const localPaths = localStore.getPaths();
       const localMapId = localStore.getCurrentMapId();
@@ -48,6 +53,7 @@ export function useAppData() {
       setMaps(localMaps);
       setMarkers(localMarkers);
       setMarkerTypes(localTypes);
+      setMarkerStatuses(localStatuses);
       setZones(localZones);
       setPaths(localPaths);
       setCurrentMapId(localMapId);
@@ -59,13 +65,15 @@ export function useAppData() {
       if (sb) {
         setSyncStatus('syncing');
         try {
-          const [mapsRes, markersRes, typesRes, zonesRes, pathsRes] = await Promise.all([
-            sb.from('maps').select('*').order('created_at', { ascending: false }),
-            sb.from('markers').select('*'),
-            sb.from('marker_types').select('*'),
-            sb.from('zones').select('*'),
-            sb.from('paths').select('*'),
-          ]);
+          const [mapsRes, markersRes, typesRes, statusesRes, zonesRes, pathsRes] =
+            await Promise.all([
+              sb.from('maps').select('*').order('created_at', { ascending: false }),
+              sb.from('markers').select('*'),
+              sb.from('marker_types').select('*'),
+              sb.from('marker_statuses').select('*'),
+              sb.from('zones').select('*'),
+              sb.from('paths').select('*'),
+            ]);
 
           if (!mapsRes.error && mapsRes.data) {
             setMaps(mapsRes.data);
@@ -78,6 +86,10 @@ export function useAppData() {
           if (!typesRes.error && typesRes.data && typesRes.data.length > 0) {
             setMarkerTypes(typesRes.data);
             localStore.setMarkerTypes(typesRes.data);
+          }
+          if (!statusesRes.error && statusesRes.data && statusesRes.data.length > 0) {
+            setMarkerStatuses(statusesRes.data);
+            localStore.setMarkerStatuses(statusesRes.data);
           }
           if (!zonesRes.error && zonesRes.data) {
             setZones(zonesRes.data);
@@ -133,6 +145,11 @@ export function useAppData() {
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'paths' }, () =>
         refresh('paths', setPaths, localStore.setPaths)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'marker_statuses' },
+        () => refresh('marker_statuses', setMarkerStatuses, localStore.setMarkerStatuses)
       )
       .subscribe();
 
@@ -281,6 +298,19 @@ export function useAppData() {
     [currentTypeId]
   );
 
+  // === MarkerStatus ===
+  const saveMarkerStatuses = useCallback(async (statuses: MarkerStatus[]) => {
+    setMarkerStatuses(statuses);
+    localStore.setMarkerStatuses(statuses);
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from('marker_statuses').delete().neq('id', '__never__');
+      if (statuses.length > 0) {
+        await sb.from('marker_statuses').insert(statuses);
+      }
+    }
+  }, []);
+
   // === Zone ===
   const addZone = useCallback(
     async (data: Omit<Zone, 'id' | 'created_at' | 'updated_at'>) => {
@@ -395,6 +425,7 @@ export function useAppData() {
     maps,
     markers,
     markerTypes,
+    markerStatuses,
     zones,
     paths,
     currentMapId,
@@ -413,6 +444,7 @@ export function useAppData() {
     removeMarker,
     updateMarker,
     saveMarkerTypes,
+    saveMarkerStatuses,
     addZone,
     updateZone,
     removeZone,

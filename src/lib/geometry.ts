@@ -353,22 +353,27 @@ export function normalizedToMeters(
 
 /**
  * 마커 이동 시 애니메이션에 걸리는 시간(ms) 계산.
- * 보정 정보가 있으면 보행 속도(3km/h) 기준으로,
- * 없으면 기본 시간을 거리에 비례해서 사용.
+ * 보정 정보가 있으면:
+ *   - calibration.speed_kmh가 있으면 그 값 사용
+ *   - 없으면 DEFAULT_WALKING_SPEED_KMH 사용
+ * 보정 자체가 없으면 거리에 비례한 기본 시간 사용.
  */
 export function computeMoveDurationMs(
   totalNormalizedDist: number,
   map: MapDoc,
-  speedKmh: number = DEFAULT_WALKING_SPEED_KMH
+  speedKmh?: number
 ): number {
   const meters = normalizedToMeters(totalNormalizedDist, map);
   if (meters === null) {
-    // 보정 없음: 거리에 비례한 기본 시간 (정규화 거리 1.0이 기본 시간의 약 2배)
+    // 보정 없음: 거리에 비례한 기본 시간
     const fallback = totalNormalizedDist * DEFAULT_MOVE_DURATION_MS * 2;
     return Math.max(MIN_MOVE_DURATION_MS, Math.min(MAX_MOVE_DURATION_MS, fallback));
   }
+  // 우선순위: 인자로 받은 속도 > calibration의 속도 > 기본 속도
+  const effectiveSpeed =
+    speedKmh ?? map.calibration?.speed_kmh ?? DEFAULT_WALKING_SPEED_KMH;
   // m/s = (km/h * 1000) / 3600
-  const metersPerSecond = (speedKmh * 1000) / 3600;
+  const metersPerSecond = (effectiveSpeed * 1000) / 3600;
   const seconds = meters / metersPerSecond;
   const ms = seconds * 1000;
   return Math.max(MIN_MOVE_DURATION_MS, Math.min(MAX_MOVE_DURATION_MS, ms));

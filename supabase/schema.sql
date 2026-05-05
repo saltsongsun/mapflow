@@ -43,6 +43,16 @@ create table if not exists public.marker_types (
   icon text
 );
 
+-- 마커 상태 테이블 (정상/주의/위험 등)
+create table if not exists public.marker_statuses (
+  id text primary key,
+  label text not null,
+  color text not null
+);
+
+-- 기존 markers 테이블에 status_id 컬럼이 없는 경우 추가
+alter table public.markers add column if not exists status_id text;
+
 -- 구역 테이블 (다각형)
 create table if not exists public.zones (
   id uuid primary key,
@@ -75,6 +85,7 @@ create index if not exists paths_map_id_idx on public.paths(map_id);
 alter publication supabase_realtime add table public.maps;
 alter publication supabase_realtime add table public.markers;
 alter publication supabase_realtime add table public.marker_types;
+alter publication supabase_realtime add table public.marker_statuses;
 alter publication supabase_realtime add table public.zones;
 alter publication supabase_realtime add table public.paths;
 
@@ -84,11 +95,13 @@ alter publication supabase_realtime add table public.paths;
 alter table public.maps enable row level security;
 alter table public.markers enable row level security;
 alter table public.marker_types enable row level security;
+alter table public.marker_statuses enable row level security;
 alter table public.zones enable row level security;
 alter table public.paths enable row level security;
 
 create policy "anon all maps" on public.maps for all to anon using (true) with check (true);
 create policy "anon all markers" on public.markers for all to anon using (true) with check (true);
 create policy "anon all marker_types" on public.marker_types for all to anon using (true) with check (true);
+create policy "anon all marker_statuses" on public.marker_statuses for all to anon using (true) with check (true);
 create policy "anon all zones" on public.zones for all to anon using (true) with check (true);
 create policy "anon all paths" on public.paths for all to anon using (true) with check (true);

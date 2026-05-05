@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Ruler, Trash2, Info } from 'lucide-react';
-import { Point2D, MapCalibration } from '../lib/types';
+import { X, Ruler, Trash2, Info, Wind } from 'lucide-react';
+import { Point2D, MapCalibration, DEFAULT_WALKING_SPEED_KMH } from '../lib/types';
 import { distance } from '../lib/geometry';
 
 interface CalibrationModalProps {
@@ -24,6 +24,9 @@ export function CalibrationModal({
   const [meters, setMeters] = useState<string>(
     current ? String(current.real_distance_m) : ''
   );
+  const [speed, setSpeed] = useState<number>(
+    current?.speed_kmh ?? DEFAULT_WALKING_SPEED_KMH
+  );
 
   const isComplete = points.length === 2;
   const metersNum = parseFloat(meters);
@@ -35,6 +38,7 @@ export function CalibrationModal({
       point_a: points[0],
       point_b: points[1],
       real_distance_m: metersNum,
+      speed_kmh: speed,
     });
     onClose();
   };
@@ -119,6 +123,40 @@ export function CalibrationModal({
               <p className="text-xs text-text-dim mt-1.5">
                 지도상 거리: {(normDist * 100).toFixed(1)}% · 1미터 ={' '}
                 {((normDist * 100) / metersNum).toFixed(2)}% 화면
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
+              <Wind size={12} />
+              이동 속도
+              <span className="ml-auto font-mono text-text">
+                {speed.toFixed(1)} km/h
+              </span>
+            </label>
+            <input
+              type="range"
+              min="0.3"
+              max="6"
+              step="0.1"
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="w-full accent-accent"
+              style={{ accentColor: '#7c5cff' }}
+            />
+            <div className="flex justify-between text-[10px] text-text-dim mt-0.5">
+              <span>느림 (0.3)</span>
+              <span>걷기 (1.5)</span>
+              <span>빠름 (6.0)</span>
+            </div>
+            {isComplete && metersNum > 0 && (
+              <p className="text-xs text-text-dim mt-1.5">
+                {metersNum.toFixed(1)}m 이동 ≈{' '}
+                <span className="text-amber-300">
+                  {((metersNum / ((speed * 1000) / 3600))).toFixed(1)}초
+                </span>{' '}
+                소요 예상
               </p>
             )}
           </div>

@@ -8,14 +8,16 @@ import {
   CloudOff,
   Loader2,
   Layers,
+  Activity,
 } from 'lucide-react';
-import { MapDoc, MarkerType, Marker } from '../lib/types';
+import { MapDoc, MarkerType, MarkerStatus, Marker } from '../lib/types';
 import { useMapUpload } from '../hooks/useMapUpload';
 
 interface SidebarProps {
   maps: MapDoc[];
   markers: Marker[];
   markerTypes: MarkerType[];
+  markerStatuses: MarkerStatus[];
   currentMapId: string | null;
   currentTypeId: string;
   syncStatus: 'local' | 'synced' | 'syncing' | 'error';
@@ -30,6 +32,7 @@ interface SidebarProps {
   onRemoveMap: (id: string) => void;
   onSelectType: (id: string) => void;
   onOpenTypeManager: () => void;
+  onOpenStatusManager: () => void;
   onClose?: () => void;
 }
 
@@ -37,6 +40,7 @@ export function Sidebar({
   maps,
   markers,
   markerTypes,
+  markerStatuses,
   currentMapId,
   currentTypeId,
   syncStatus,
@@ -46,6 +50,7 @@ export function Sidebar({
   onRemoveMap,
   onSelectType,
   onOpenTypeManager,
+  onOpenStatusManager,
   onClose,
 }: SidebarProps) {
   const { fileInputRef, uploading, uploadInfo, triggerUpload, handleUpload } = useMapUpload(
@@ -207,6 +212,62 @@ export function Sidebar({
             지도 클릭 시 선택된 종류로 표시됩니다
           </p>
         </div>
+
+        {/* === 상태 === */}
+        <div className="p-4 border-t border-border">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider">
+              <Activity size={12} />
+              상태
+            </div>
+            <button
+              className="btn btn-ghost !p-1 !text-text-muted hover:!text-text"
+              onClick={onOpenStatusManager}
+              title="상태 관리"
+            >
+              <Settings size={12} />
+            </button>
+          </div>
+
+          {markerStatuses.length === 0 ? (
+            <button
+              className="w-full text-center py-3 px-3 rounded-lg border border-dashed border-border-strong text-xs text-text-muted hover:text-accent hover:border-accent transition-colors"
+              onClick={onOpenStatusManager}
+            >
+              + 상태 만들기
+            </button>
+          ) : (
+            <div className="space-y-1">
+              {markerStatuses.map((status) => {
+                const count = markers.filter(
+                  (m) => m.map_id === currentMapId && m.status_id === status.id
+                ).length;
+                return (
+                  <div
+                    key={status.id}
+                    className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-bg-elevated/50 border border-transparent"
+                  >
+                    <div className="relative w-3 h-3 flex-shrink-0">
+                      <div
+                        className="absolute inset-0 rounded-full"
+                        style={{
+                          background: status.color,
+                          boxShadow: `0 0 8px ${status.color}`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm flex-1 truncate">{status.label}</span>
+                    <span className="text-xs text-text-dim font-mono">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="text-xs text-text-dim mt-3 leading-relaxed">
+            마커 클릭 후 편집 모달에서 변경 가능
+          </p>
+        </div>
       </div>
 
       {/* === 푸터 === */}
@@ -226,8 +287,9 @@ export function Sidebar({
 
       {onClose && (
         <button
-          className="md:hidden absolute top-3 right-3 btn btn-ghost !p-1.5"
+          className="absolute top-3 right-3 btn btn-ghost !p-1.5"
           onClick={onClose}
+          title="닫기"
         >
           ✕
         </button>
